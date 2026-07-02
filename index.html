@@ -1,0 +1,1815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LeanOffice">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="manifest" href="manifest.json">
+<title>LeanOffice by StreamLean</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800;900&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+:root{
+  --bg:#04070e;--bg-card:#0a1220;--bg-alt:#0d1a2e;--bg-hover:#101f38;--bg-input:#0a1220;
+  --border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.11);--border-strong:rgba(255,255,255,.2);
+  --text-bright:#ffffff;--text-primary:rgba(255,255,255,.92);--text-secondary:rgba(255,255,255,.62);--text-muted:rgba(255,255,255,.35);
+  --accent:#60a5fa;--accent-dim:rgba(96,165,250,.1);--accent-border:rgba(96,165,250,.25);
+  --green:#4ade80;--red:#f87171;--yellow:#fbbf24;--orange:#fb923c;
+  --r-xs:5px;--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:24px;
+  --nav-w:230px;
+  --t-home:#93c5fd;--t-notes:#fde047;--t-goals:#c084fc;--t-habits:#a3e635;--t-meetings:#2dd4bf;--t-growth:#22d3ee;--t-review:#a78bfa;
+  --t-build:#60a5fa;--t-market:#f472b6;--t-sales:#4ade80;--t-operations:#f59e0b;--t-finance:#34d399;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text-primary);font-family:'Outfit',sans-serif;font-size:14px;line-height:1.5;overflow:hidden}
+button,input,select,textarea{font-family:inherit;color:inherit}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:4px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---- Auth screen ---- */
+#auth-screen{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px}
+.auth-card{width:100%;max-width:380px;background:var(--bg-card);border:1px solid var(--border-md);border-radius:var(--r-xl);padding:32px 28px;box-shadow:0 32px 80px rgba(0,0,0,.6)}
+.auth-logo{font-family:'Orbitron',monospace;font-size:22px;font-weight:900;color:var(--text-bright);letter-spacing:.06em;margin-bottom:4px;text-align:center}
+.auth-logo span{color:var(--accent)}
+.auth-sub{font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:28px;font-family:'JetBrains Mono',monospace;letter-spacing:.1em;text-transform:uppercase}
+.auth-tabs{display:flex;gap:2px;background:rgba(255,255,255,.05);border:1px solid var(--border-md);border-radius:var(--r-sm);padding:2px;margin-bottom:22px}
+.auth-tab{flex:1;padding:7px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;color:var(--text-muted);transition:all .15s}
+.auth-tab.on{background:rgba(96,165,250,.12);color:var(--accent)}
+.auth-err{font-size:12px;color:var(--red);margin-bottom:12px;text-align:center;min-height:18px}
+.auth-footer{font-size:11px;color:var(--text-muted);text-align:center;margin-top:16px;line-height:1.6}
+.auth-footer a{color:var(--accent);cursor:pointer;text-decoration:underline}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;margin-right:5px;flex-shrink:0}
+.sync-dot.off{background:var(--text-muted)}
+.sync-dot.syncing{background:var(--yellow);animation:pulse-sync .8s infinite}
+@keyframes pulse-sync{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ---- Shell / sidebar ---- */
+.shell{display:flex;height:100vh}
+.sidebar{width:var(--nav-w);flex-shrink:0;background:rgba(4,7,14,.97);border-right:1px solid var(--border);display:flex;flex-direction:column;position:relative;z-index:100}
+.sidebar::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.sb-head{padding:10px 18px 8px;border-bottom:1px solid var(--border)}
+.sb-logo{font-family:'Orbitron',monospace;font-size:13px;font-weight:900;letter-spacing:.08em;color:var(--text-bright);margin-bottom:1px}
+.sb-logo span{color:var(--accent)}
+.sb-sub{font-size:9px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--text-muted)}
+.sb-date{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);margin-top:3px;opacity:.7}
+.sb-nav{flex:1;padding:4px 10px;overflow-y:auto;display:flex;flex-direction:column;gap:1px}
+.sb-section{padding:12px 12px 4px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted)}
+.nav-btn{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px;font-weight:500;width:100%;text-align:left;transition:all .15s;position:relative}
+.nav-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+.nav-btn.active{color:var(--tab-color,var(--accent));background:color-mix(in srgb,var(--tab-color,var(--accent)) 10%,transparent)}
+.nav-btn.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:2px;border-radius:0 2px 2px 0;background:var(--tab-color,var(--accent))}
+.nav-emoji{font-size:16px;flex-shrink:0;width:20px;text-align:center;transition:transform .15s;line-height:1}
+.nav-btn:hover .nav-emoji{transform:scale(1.15)}
+.nav-pill{margin-left:auto;min-width:18px;height:16px;border-radius:99px;font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.sb-sync{padding:10px 16px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.sb-sync-label{font-size:11px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb-sync-btn{background:transparent;border:none;color:var(--text-muted);font-size:10px;cursor:pointer;padding:3px 6px;border-radius:4px}
+.sb-sync-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+
+/* ---- Main / tab panels ---- */
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.tab-panel{display:none;height:100%;overflow-y:auto;padding:24px 28px}
+.tab-panel.active{display:block}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.ph-eyebrow{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;opacity:.7;margin-bottom:4px}
+.ph-title{font-family:'Orbitron',monospace;font-size:22px;font-weight:800;letter-spacing:.02em}
+.ph-sub{font-size:12.5px;color:var(--text-secondary);margin-top:5px;max-width:520px}
+.ph-actions{display:flex;gap:8px;flex-shrink:0}
+
+/* ---- Buttons / cards ---- */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--r-sm);border:none;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600;font-size:12px;transition:all .15s;text-decoration:none}
+.btn-primary{background:var(--tab-color,var(--accent));color:#000}
+.btn-primary:hover{filter:brightness(1.12)}
+.btn-ghost{background:rgba(255,255,255,.06);color:var(--text-secondary);border:1px solid var(--border-md)}
+.btn-ghost:hover{background:rgba(255,255,255,.1);color:var(--text-primary)}
+.btn-block{width:100%;justify-content:center}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.card-title{font-family:'Orbitron',monospace;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-secondary)}
+.card-body{padding:16px 18px}
+.card-body.tight{padding:6px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.grid-2{grid-template-columns:1fr}}
+
+/* ---- Eisenhower matrix ---- */
+.matrix-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.matrix-q{border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--border)}
+.matrix-qh{padding:10px 14px;display:flex;align-items:center;gap:8px}
+.matrix-qh-label{font-family:'Orbitron',monospace;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.matrix-qh-sub{font-size:10px;color:rgba(255,255,255,.5);margin-top:1px}
+.matrix-qb{background:var(--bg-card);padding:8px;min-height:100px;max-height:320px;overflow-y:auto}
+.matrix-task{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:var(--r-xs);cursor:default;transition:background .1s}
+.matrix-task:hover{background:var(--bg-hover)}
+.matrix-task.done .matrix-task-title{text-decoration:line-through;color:var(--text-muted)}
+.matrix-task-title{font-size:12px;flex:1;line-height:1.4;color:var(--text-primary)}
+.matrix-task-notes{font-size:10.5px;color:var(--text-muted);margin-top:2px}
+.matrix-empty{padding:18px 8px;text-align:center;font-size:11px;color:var(--text-muted)}
+.matrix-unsorted{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;margin-bottom:10px}
+.matrix-unsorted-label{font-family:'Orbitron',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px}
+.check-box{cursor:pointer;width:16px;height:16px;border-radius:3px;flex-shrink:0;border:1.5px solid var(--border-strong);display:flex;align-items:center;justify-content:center;font-size:10px;color:#000;margin-top:1px}
+.matrix-task.done .check-box{background:var(--tab-color,var(--accent));border-color:var(--tab-color,var(--accent))}
+.delete-btn{background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:3px 4px;border-radius:4px;font-size:11px;flex-shrink:0}
+.delete-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+.eim-chip{flex:1;padding:8px;border-radius:var(--r-sm);border:1px solid var(--border-md);background:transparent;color:var(--text-muted);cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600;font-size:12px;text-align:center;transition:all .15s}
+.eim-chip.on-urgent{border-color:var(--red);background:rgba(248,113,113,.1);color:var(--red)}
+.eim-chip.on-not-urgent{border-color:#60a5fa;background:rgba(96,165,250,.1);color:#60a5fa}
+.eim-chip.on-important{border-color:var(--green);background:rgba(74,222,128,.1);color:var(--green)}
+.eim-chip.on-not-important{border-color:var(--text-muted);background:rgba(255,255,255,.05);color:var(--text-muted)}
+
+/* ---- Generic list rows / tags / chips ---- */
+.list-row{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.list-row:last-child{border-bottom:none}
+.list-row:hover{background:var(--bg-hover)}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600;background:rgba(255,255,255,.06);color:var(--text-secondary)}
+.chip-row{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:6px 11px;border-radius:99px;border:1px solid var(--border-md);background:transparent;color:var(--text-muted);cursor:pointer;font-size:11.5px;font-weight:600;transition:all .15s}
+.chip.on{border-color:var(--tab-color,var(--accent));background:color-mix(in srgb,var(--tab-color,var(--accent)) 15%,transparent);color:var(--tab-color,var(--accent))}
+.status-pill{padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700;cursor:pointer;border:none;flex-shrink:0}
+.sub-tab-bar{display:flex;gap:2px;background:rgba(255,255,255,.05);border:1px solid var(--border-md);border-radius:var(--r-sm);padding:2px;margin-bottom:16px;width:fit-content}
+.sub-tab-btn{padding:7px 16px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);border:none;background:transparent}
+.sub-tab-btn.on{background:color-mix(in srgb,var(--tab-color,var(--accent)) 15%,transparent);color:var(--tab-color,var(--accent))}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+.stat-tile{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;text-align:center}
+.stat-num{font-family:'Orbitron',monospace;font-size:22px;font-weight:800}
+.stat-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+.slider-row{margin-bottom:16px}
+.slider-row label{display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px}
+.slider-row input[type=range]{width:100%;accent-color:var(--tab-color,var(--accent))}
+.empty-state{padding:30px 14px;text-align:center;color:var(--text-muted);font-size:12px}
+.progress-track{height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+.progress-fill{height:100%;border-radius:99px;transition:width .2s}
+.priority-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-md);background:var(--bg-card);border:1px solid var(--border);margin-bottom:8px;cursor:pointer}
+.priority-card:hover{background:var(--bg-hover)}
+.priority-num{font-family:'Orbitron',monospace;font-size:16px;font-weight:900;color:var(--tab-color,var(--accent));width:28px;flex-shrink:0;text-align:center}
+.priority-title{font-size:13px;font-weight:600;flex:1}
+.priority-sub{font-size:10.5px;color:var(--text-muted);margin-top:2px}
+.habit-drag{cursor:grab;color:var(--text-muted);font-size:13px;flex-shrink:0;user-select:none;width:14px;text-align:center}
+.habit-drag:active{cursor:grabbing}
+.habit-row.drag-over{background:var(--bg-hover);outline:1px dashed var(--t-habits);outline-offset:-1px}
+
+/* ---- Modal ---- */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--bg-alt);border:1px solid var(--border-md);border-radius:var(--r-xl);width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.04);transform:translateY(12px);transition:transform .25s cubic-bezier(.4,0,.2,1);overflow:hidden;position:relative;margin:16px}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--tab-color,var(--accent)),transparent);pointer-events:none}
+.modal-head{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-title{font-family:'Orbitron',monospace;font-size:13px;font-weight:800;letter-spacing:.04em}
+.modal-close{background:transparent;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:4px 8px;border-radius:6px}
+.modal-close:hover{background:var(--bg-hover);color:var(--text-primary)}
+.modal-body{padding:20px 22px;overflow-y:auto;flex:1}
+.modal-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.field-row{display:flex;gap:12px}
+.field-row .field{flex:1}
+.input,.select,textarea.input{width:100%;padding:9px 12px;border-radius:var(--r-sm);border:1px solid var(--border-md);background:var(--bg-input);color:var(--text-primary);font-family:'Outfit',sans-serif;font-size:13px}
+.input:focus,.select:focus{outline:none;border-color:var(--tab-color,var(--accent))}
+textarea.input{resize:vertical;min-height:64px}
+
+/* ---- Toast ---- */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg-alt);border:1px solid var(--border-md);border-radius:var(--r-md);padding:10px 18px;font-size:12px;color:var(--text-primary);opacity:0;pointer-events:none;transition:all .25s;z-index:900}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---- Mobile ---- */
+.mob-header{display:none}
+.mob-backdrop{display:none}
+@media(max-width:768px){
+  .mob-header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg)}
+  .mob-hamburger{background:transparent;border:1px solid var(--border-md);color:var(--text-primary);border-radius:var(--r-sm);width:34px;height:34px;font-size:16px;cursor:pointer}
+  .mob-title{font-family:'Orbitron',monospace;font-size:13px;font-weight:800}
+  .shell{flex-direction:column}
+  .sidebar{position:fixed;top:0;left:0;bottom:0;transform:translateX(-100%);transition:transform .2s;z-index:200}
+  .sidebar.open{transform:translateX(0)}
+  .mob-backdrop.open{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150}
+  .matrix-grid{grid-template-columns:1fr!important}
+  .field-row{flex-direction:column;gap:0}
+}
+</style>
+</head>
+<body>
+
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">LEAN<span>OFFICE</span></div>
+    <div class="auth-sub">Business OS</div>
+    <div class="auth-tabs">
+      <div class="auth-tab on" id="auth-tab-in" onclick="switchAuthTab('in')">Sign In</div>
+      <div class="auth-tab" id="auth-tab-up" onclick="switchAuthTab('up')">Sign Up</div>
+    </div>
+    <div class="auth-err" id="auth-err"></div>
+    <div class="field" id="auth-name-field" style="display:none">
+      <label>Your name</label>
+      <input class="input" id="auth-name" type="text" placeholder="First name" autocomplete="given-name">
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input class="input" id="auth-email" type="email" placeholder="you@email.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input class="input" id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAuth()">
+    </div>
+    <button class="btn btn-primary btn-block" id="auth-btn" onclick="doAuth()" style="padding:10px;margin-top:4px">Sign In</button>
+    <div class="auth-footer">
+      Same account as LeanFlow — one login across the Lean suite.<br>
+      <a onclick="skipAuth()">Use without account (local only)</a>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="appToast"></div>
+<div class="mob-backdrop" id="mobBackdrop" onclick="closeMobSidebar()"></div>
+
+<div class="shell">
+  <header class="mob-header">
+    <button class="mob-hamburger" onclick="openMobSidebar()">☰</button>
+    <div class="mob-title" id="mobTitle">LeanOffice</div>
+  </header>
+
+  <nav class="sidebar" id="sidebar">
+    <div class="sb-head">
+      <div class="sb-logo">LEAN<span>OFFICE</span></div>
+      <div class="sb-sub">Business OS</div>
+      <div class="sb-date" id="sbDate"></div>
+    </div>
+    <div class="sb-nav" id="sbNav"></div>
+    <div class="sb-sync">
+      <span class="sync-dot off" id="syncDot"></span>
+      <span class="sb-sync-label" id="syncLabel">Not signed in</span>
+      <button class="sb-sync-btn" id="syncLogoutBtn" onclick="doSignOut()" style="display:none">Sign out</button>
+    </div>
+  </nav>
+
+  <div class="main" id="mainTabs"></div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="modalTitle">Add Task</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   LeanOffice — Business OS
+   Home / Capture / Goals / Meetings / Growth / Weekly Review,
+   plus 5 department tabs each an Eisenhower matrix of tasks.
+   Shares LeanFlow's Supabase project/auth; own sync table.
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function today(){ return new Date().toISOString().slice(0,10); }
+function fmtDateShort(d){ if(!d) return ''; const dt=new Date(d+'T00:00:00'); if(isNaN(dt)) return d; return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
+function fmtTime(t){ if(!t) return ''; const [h,m]=t.split(':').map(Number); const ap=h>=12?'PM':'AM'; const h12=((h+11)%12)+1; return `${h12}:${String(m).padStart(2,'0')} ${ap}`; }
+function safeColor(c){ return /^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]+$/.test(String(c||'')) ? c : null; }
+
+// ---------------------------------------------------------------
+// Departments — the 5 Eisenhower-matrix tabs are generated from this
+// ---------------------------------------------------------------
+const DEPTS = [
+  {key:'build',      label:'Build',      icon:'🏗️', color:'var(--t-build)',      desc:'Product, engineering, and delivery work.'},
+  {key:'market',     label:'Market',     icon:'📣', color:'var(--t-market)',     desc:'Positioning, campaigns, and demand generation.'},
+  {key:'sales',      label:'Sales',      icon:'💼', color:'var(--t-sales)',      desc:'Pipeline, outreach, and closing deals.'},
+  {key:'operations', label:'Operations', icon:'⚙️', color:'var(--t-operations)', desc:'Systems, SOPs, and the day-to-day running of the business.'},
+  {key:'finance',    label:'Finance',    icon:'💰', color:'var(--t-finance)',    desc:'Cash flow, budgeting, and financial planning.'},
+];
+const LOK = {}; // localStorage key per department (task collections)
+DEPTS.forEach(d => LOK[d.key] = 'lo_' + d.key);
+function deptOf(key){ return DEPTS.find(d => d.key === key); }
+
+// Overview tabs (fixed, hand-built markup — not homogeneous like DEPTS)
+const NAV_STATIC = [
+  {key:'home',     label:'Home',           icon:'🏠', color:'var(--t-home)',     pill:false},
+  {key:'notes',    label:'Capture',        icon:'💡', color:'var(--t-notes)'},
+  {key:'goals',    label:'Goals',          icon:'🎯', color:'var(--t-goals)'},
+  {key:'habits',   label:'Habits',         icon:'🔁', color:'var(--t-habits)'},
+  {key:'meetings', label:'Meetings',       icon:'📅', color:'var(--t-meetings)'},
+  {key:'growth',   label:'Growth',         icon:'📈', color:'var(--t-growth)',   pill:false},
+  {key:'review',   label:'Weekly Review',  icon:'📊', color:'var(--t-review)',   pill:false},
+];
+const NAV = [...NAV_STATIC, ...DEPTS];
+
+// Single-collection localStorage keys (not per-department)
+const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews' };
+
+let activeTab = 'home';
+
+// ---------------------------------------------------------------
+// Local storage (source of truth for the UI) + Supabase push
+// ---------------------------------------------------------------
+function load(k){ try{ return JSON.parse(localStorage.getItem(k) || '[]'); } catch{ return []; } }
+function save(k, v){
+  const oldRaw = localStorage.getItem(k);
+  localStorage.setItem(k, JSON.stringify(v));
+  sbPush(k, v, oldRaw);
+  updateAllPills();
+}
+
+function allDeptTasks(){
+  return DEPTS.flatMap(d => load(LOK[d.key]).map(t => ({...t, _dept: d.key})));
+}
+
+// ---------------------------------------------------------------
+// Eisenhower matrix (department tabs)
+// ---------------------------------------------------------------
+const EIM_Q = [
+  {u:'urgent',    i:'important',     key:'q1', label:'DO FIRST',  sub:'Urgent + Important',         color:'var(--red)',    bg:'rgba(248,113,113,.08)'},
+  {u:'not-urgent',i:'important',     key:'q2', label:'SCHEDULE',  sub:'Not Urgent + Important',      color:'#60a5fa',       bg:'rgba(96,165,250,.08)'},
+  {u:'urgent',    i:'not-important', key:'q3', label:'DELEGATE',  sub:'Urgent + Not Important',      color:'var(--yellow)', bg:'rgba(251,191,36,.08)'},
+  {u:'not-urgent',i:'not-important', key:'q4', label:'ELIMINATE', sub:'Not Urgent + Not Important',  color:'var(--text-muted)', bg:'rgba(255,255,255,.03)'},
+];
+
+function taskRow(dept, t){
+  return `
+    <div class="matrix-task ${t.done?'done':''}">
+      <div class="check-box" onclick="toggleTask('${dept}','${t.id}')">${t.done?'✓':''}</div>
+      <div style="flex:1;min-width:0">
+        <div class="matrix-task-title">${esc(t.title)}</div>
+        ${t.due?`<div style="font-size:10px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">📅 ${fmtDateShort(t.due)}</div>`:''}
+        ${t.notes?`<div class="matrix-task-notes">${esc(t.notes)}</div>`:''}
+      </div>
+      <button class="delete-btn" onclick="editTask('${dept}','${t.id}')" title="Edit">✏️</button>
+      <button class="delete-btn" onclick="deleteTask('${dept}','${t.id}')" title="Delete">✕</button>
+    </div>`;
+}
+
+function renderMatrix(dept){
+  const el = $('matrix-' + dept);
+  if(!el) return;
+  const due = t => t.due || '9999-99-99';
+  const byDue = (a,b) => due(a) < due(b) ? -1 : due(a) > due(b) ? 1 : 0;
+  const all = load(LOK[dept]).filter(t => !t.done);
+
+  const assigned = {q1:[], q2:[], q3:[], q4:[]};
+  const unsorted = [];
+  all.forEach(t => {
+    const q = EIM_Q.find(q => q.u === t.urgency && q.i === t.importance);
+    if(q) assigned[q.key].push(t); else unsorted.push(t);
+  });
+  Object.keys(assigned).forEach(k => assigned[k].sort(byDue));
+  unsorted.sort(byDue);
+
+  const quadrant = q => `
+    <div class="matrix-q">
+      <div class="matrix-qh" style="background:${q.bg};border-bottom:2px solid ${q.color}">
+        <div>
+          <div class="matrix-qh-label" style="color:${q.color}">${q.label}</div>
+          <div class="matrix-qh-sub">${q.sub}</div>
+        </div>
+        <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:${q.color}">${assigned[q.key].length}</span>
+      </div>
+      <div class="matrix-qb">
+        ${assigned[q.key].length ? assigned[q.key].map(t => taskRow(dept,t)).join('') : `<div class="matrix-empty">Empty</div>`}
+      </div>
+    </div>`;
+
+  const unsortedSection = unsorted.length ? `
+    <div class="matrix-unsorted">
+      <div class="matrix-unsorted-label">⊡ Unsorted — open a task to assign a quadrant</div>
+      ${unsorted.map(t => taskRow(dept,t)).join('')}
+    </div>` : '';
+
+  el.innerHTML = `<div class="matrix-grid">${EIM_Q.map(quadrant).join('')}</div>${unsortedSection}`;
+  updatePill(dept);
+}
+
+function updatePill(dept){
+  const el = $('pill-' + dept);
+  if(!el) return;
+  el.textContent = load(LOK[dept]).filter(t => !t.done).length;
+}
+
+function updateAllPills(){
+  DEPTS.forEach(d => updatePill(d.key));
+  const setPill = (key, n) => { const el = $('pill-'+key); if(el) el.textContent = n; };
+  setPill('notes', load(NK.notes).filter(n => n.status === null || n.status === undefined).length);
+  setPill('goals', load(NK.goals).length);
+  const habits = load(NK.habits);
+  const log = load(NK.habitLog);
+  const doneToday = habits.filter(h => log.some(e => e.habitId === h.id && e.date === today())).length;
+  setPill('habits', habits.length - doneToday);
+  setPill('meetings', load(NK.meetings).filter(m => m.date === today() && !m.done).length);
+}
+
+function toggleTask(dept, id){
+  const tasks = load(LOK[dept]);
+  const t = tasks.find(x => x.id === id);
+  if(!t) return;
+  t.done = !t.done;
+  save(LOK[dept], tasks);
+  renderMatrix(dept);
+}
+
+function deleteTask(dept, id){
+  const tasks = load(LOK[dept]).filter(x => x.id !== id);
+  save(LOK[dept], tasks);
+  renderMatrix(dept);
+}
+
+// ---------------------------------------------------------------
+// Task modal (add / edit) — shared across all 5 departments
+// ---------------------------------------------------------------
+let _eimUrgency = null, _eimImportance = null;
+let _editingTask = null, _editingGoal = null, _editingHabit = null, _editingMeeting = null, _editingGrowth = null, _outcomeMeetingId = null;
+let currentSaveFn = null;
+
+function setEim(dim, val){
+  if(dim === 'urgency'){
+    _eimUrgency = _eimUrgency === val ? null : val;
+    const u = $('eim-urgent'), nu = $('eim-not-urgent');
+    if(u) u.className = 'eim-chip' + (_eimUrgency === 'urgent' ? ' on-urgent' : '');
+    if(nu) nu.className = 'eim-chip' + (_eimUrgency === 'not-urgent' ? ' on-not-urgent' : '');
+  } else {
+    _eimImportance = _eimImportance === val ? null : val;
+    const i = $('eim-important'), ni = $('eim-not-important');
+    if(i) i.className = 'eim-chip' + (_eimImportance === 'important' ? ' on-important' : '');
+    if(ni) ni.className = 'eim-chip' + (_eimImportance === 'not-important' ? ' on-not-important' : '');
+  }
+}
+function resetEim(){
+  _eimUrgency = null; _eimImportance = null;
+  ['eim-urgent','eim-not-urgent','eim-important','eim-not-important'].forEach(id => { const el=$(id); if(el) el.className='eim-chip'; });
+}
+
+function taskModalHtml(){
+  return `
+    <div class="field"><label>Task *</label><input class="input" id="lo-task-title" placeholder="What needs to get done?"></div>
+    <div class="field"><label>Due Date</label><input class="input" id="lo-task-due" type="date"></div>
+    <div class="field"><label>Notes</label><textarea class="input" id="lo-task-notes" placeholder="Optional context"></textarea></div>
+    <div class="field">
+      <label>Eisenhower — Urgency</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="eim-chip" id="eim-urgent" onclick="setEim('urgency','urgent')">⚡ Urgent</button>
+        <button type="button" class="eim-chip" id="eim-not-urgent" onclick="setEim('urgency','not-urgent')">📅 Not Urgent</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Eisenhower — Importance</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="eim-chip" id="eim-important" onclick="setEim('importance','important')">⭐ Important</button>
+        <button type="button" class="eim-chip" id="eim-not-important" onclick="setEim('importance','not-important')">○ Not Important</button>
+      </div>
+    </div>`;
+}
+
+function openTaskModal(dept){
+  const d = deptOf(dept);
+  _editingTask = {dept, id:null};
+  resetEim();
+  $('modalTitle').textContent = 'New Task — ' + d.label;
+  $('modalBody').innerHTML = taskModalHtml();
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveTaskForm;
+  document.documentElement.style.setProperty('--tab-color', d.color);
+  $('modalOverlay').classList.add('open');
+  setTimeout(() => { const f=$('lo-task-title'); if(f) f.focus(); }, 100);
+}
+
+function editTask(dept, id){
+  const t = load(LOK[dept]).find(x => x.id === id);
+  if(!t) return;
+  const d = deptOf(dept);
+  _editingTask = {dept, id};
+  resetEim();
+  $('modalTitle').textContent = 'Edit Task — ' + d.label;
+  $('modalBody').innerHTML = taskModalHtml();
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveTaskForm;
+  document.documentElement.style.setProperty('--tab-color', d.color);
+  $('lo-task-title').value = t.title || '';
+  $('lo-task-due').value = t.due || '';
+  $('lo-task-notes').value = t.notes || '';
+  if(t.urgency) setEim('urgency', t.urgency);
+  if(t.importance) setEim('importance', t.importance);
+  $('modalOverlay').classList.add('open');
+  setTimeout(() => { const f=$('lo-task-title'); if(f) f.focus(); }, 100);
+}
+
+function saveTaskForm(){
+  const title = $('lo-task-title').value.trim();
+  if(!title){ alert('Task title required'); return; }
+  const {dept, id} = _editingTask;
+  const tasks = load(LOK[dept]);
+  const fields = {
+    title,
+    due: $('lo-task-due').value || '',
+    notes: $('lo-task-notes').value.trim(),
+    urgency: _eimUrgency || null,
+    importance: _eimImportance || null,
+  };
+  if(id){
+    const i = tasks.findIndex(t => t.id === id);
+    if(i >= 0) tasks[i] = {...tasks[i], ...fields};
+  } else {
+    tasks.unshift({id: uid(), ...fields, done:false, created: today()});
+  }
+  save(LOK[dept], tasks);
+  closeModal();
+  renderMatrix(dept);
+  if(activeTab === 'home') renderHome();
+}
+
+function closeModal(){
+  $('modalOverlay').classList.remove('open');
+  currentSaveFn = null;
+  _editingTask = null; _editingGoal = null; _editingHabit = null; _editingMeeting = null; _editingGrowth = null; _outcomeMeetingId = null;
+  resetEim();
+}
+function closeModalOutside(e){ if(e.target === $('modalOverlay')) closeModal(); }
+
+// ---------------------------------------------------------------
+// Home tab
+// ---------------------------------------------------------------
+function homeTabHtml(){
+  return `
+    <div id="tab-home" class="tab-panel ${activeTab==='home'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-home)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-home)">🏠 Home</div>
+          <div class="ph-sub">Your business at a glance.</div>
+        </div>
+      </div>
+      <div id="home-priorities"></div>
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Today's Tasks</div></div>
+          <div class="card-body tight" id="home-tasks"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Today's Habits</div></div>
+          <div class="card-body tight" id="home-habits"></div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Today's Meetings</div></div>
+          <div class="card-body tight" id="home-meetings"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Active Goals</div></div>
+          <div class="card-body tight" id="home-goals"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Recent Capture</div></div>
+        <div class="card-body tight" id="home-notes"></div>
+      </div>
+    </div>`;
+}
+
+function renderHome(){
+  const tasks = allDeptTasks().filter(t => !t.done);
+  const score = t => {
+    let s = 0;
+    if(t.due && t.due < today()) s += 80;
+    else if(t.due === today()) s += 40;
+    if(t.urgency === 'urgent') s += 20;
+    if(t.importance === 'important') s += 15;
+    return s;
+  };
+  const top = tasks.map(t => ({...t, _score: score(t)})).filter(t => t._score > 0).sort((a,b) => b._score - a._score).slice(0,3);
+  const prEl = $('home-priorities');
+  if(prEl){
+    prEl.innerHTML = top.length ? `
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><div class="card-title">Top Priorities</div></div>
+        <div class="card-body tight">
+          ${top.map((t,i) => `
+            <div class="priority-card" onclick="toggleTask('${t._dept}','${t.id}');renderHome()">
+              <div class="priority-num">0${i+1}</div>
+              <div style="flex:1">
+                <div class="priority-title">${esc(t.title)}</div>
+                <div class="priority-sub">${deptOf(t._dept).icon} ${deptOf(t._dept).label}${t.due?' · 📅 '+fmtDateShort(t.due):''}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+  }
+
+  const dueToday = tasks.filter(t => t.due === today()).slice(0,6);
+  $('home-tasks').innerHTML = dueToday.length ? dueToday.map(t => `
+    <div class="list-row">
+      <div class="check-box" onclick="toggleTask('${t._dept}','${t.id}');renderHome()">${t.done?'✓':''}</div>
+      <div style="flex:1"><div class="matrix-task-title">${esc(t.title)}</div><span class="tag">${deptOf(t._dept).icon} ${deptOf(t._dept).label}</span></div>
+    </div>`).join('') : `<div class="empty-state">Nothing due today</div>`;
+
+  const meetsToday = load(NK.meetings).filter(m => m.date === today()).sort((a,b) => (a.time||'') < (b.time||'') ? -1 : 1);
+  $('home-meetings').innerHTML = meetsToday.length ? meetsToday.map(m => `
+    <div class="list-row">
+      <div style="flex:1">
+        <div class="matrix-task-title">${esc(m.title)}</div>
+        <div class="matrix-task-notes">${m.time?fmtTime(m.time):'All day'}${m.dept?' · '+deptOf(m.dept).icon+' '+deptOf(m.dept).label:''}</div>
+      </div>
+    </div>`).join('') : `<div class="empty-state">No meetings today</div>`;
+
+  const goals = load(NK.goals).slice(0,5);
+  $('home-goals').innerHTML = goals.length ? goals.map(g => `
+    <div class="list-row">
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="matrix-task-title">${esc(g.title)}</span><span style="font-size:11px;color:${safeColor(g.color)||'var(--accent)'}">${g.progress||0}%</span></div>
+        <div class="progress-track"><div class="progress-fill" style="width:${g.progress||0}%;background:${safeColor(g.color)||'var(--accent)'}"></div></div>
+      </div>
+    </div>`).join('') : `<div class="empty-state">No goals yet</div>`;
+
+  const notes = load(NK.notes).slice(0,5);
+  $('home-notes').innerHTML = notes.length ? notes.map(n => `
+    <div class="list-row">
+      <div style="flex:1"><div class="matrix-task-title">${esc(n.text.slice(0,80))}</div><span class="tag">${esc(n.category||'')}</span></div>
+    </div>`).join('') : `<div class="empty-state">Nothing captured yet</div>`;
+
+  renderHomeHabits();
+}
+
+function renderHomeHabits(){
+  const habits = load(NK.habits);
+  const log = load(NK.habitLog);
+  const el = $('home-habits');
+  if(!el) return;
+  if(!habits.length){ el.innerHTML = `<div class="empty-state">No habits set up</div>`; return; }
+  el.innerHTML = habits.slice(0,6).map(h => {
+    const done = log.some(e => e.habitId === h.id && e.date === today());
+    return `
+    <div class="list-row" style="cursor:pointer" onclick="toggleHabitDay('${h.id}','${today()}')">
+      <div class="check-box" style="${done?'background:var(--t-habits);border-color:var(--t-habits)':''}">${done?'✓':''}</div>
+      <div style="flex:1"><span class="matrix-task-title">${h.icon||'⭐'} ${esc(h.name)}</span></div>
+    </div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------
+// Capture tab (notes)
+// ---------------------------------------------------------------
+const NOTE_CATS = ['💡 Business Idea','📣 Marketing Idea','💼 Sales Idea','⚙️ Process Improvement','💰 Finance Note','🔗 Resource','🧠 Thought','⚡ Quick Thought'];
+const NOTE_STATUSES = [
+  {v:null, l:'Open', color:'var(--text-muted)'},
+  {v:'in-progress', l:'Scheduled', color:'#60a5fa'},
+  {v:'done', l:'Done', color:'var(--green)'},
+  {v:'rejected', l:'Rejected', color:'var(--red)'},
+];
+let _noteCat = NOTE_CATS[0], _noteDept = null, _noteFilterCat = null;
+
+function notesTabHtml(){
+  return `
+    <div id="tab-notes" class="tab-panel ${activeTab==='notes'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-notes)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-notes)">💡 Capture</div>
+          <div class="ph-sub">Never lose a business idea.</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-body">
+          <textarea class="input" id="note-input" placeholder="Capture an idea, quick thought, or note... (Cmd/Ctrl+Enter to save)" style="min-height:70px" onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter')saveNote()"></textarea>
+          <div style="margin-top:10px" class="chip-row" id="note-cat-chips"></div>
+          <div style="margin-top:8px" class="chip-row" id="note-dept-chips"></div>
+          <div class="field" style="margin-top:10px;margin-bottom:0"><input class="input" id="note-source" placeholder="Source link (optional)"></div>
+          <button class="btn btn-primary" style="margin-top:10px;background:var(--t-notes)" onclick="saveNote()">+ Capture</button>
+        </div>
+      </div>
+      <div class="chip-row" id="note-filter-chips" style="margin-bottom:14px"></div>
+      <div class="card"><div id="notes-feed"></div></div>
+    </div>`;
+}
+
+function renderNoteChips(){
+  $('note-cat-chips').innerHTML = NOTE_CATS.map(c => `<button type="button" class="chip ${c===_noteCat?'on':''}" onclick="_noteCat='${c}';renderNoteChips()">${c}</button>`).join('');
+  $('note-dept-chips').innerHTML = `<button type="button" class="chip ${!_noteDept?'on':''}" onclick="_noteDept=null;renderNoteChips()">General</button>` +
+    DEPTS.map(d => `<button type="button" class="chip ${_noteDept===d.key?'on':''}" onclick="_noteDept='${d.key}';renderNoteChips()">${d.icon} ${d.label}</button>`).join('');
+}
+
+function saveNote(){
+  const text = $('note-input').value.trim();
+  if(!text) return;
+  const notes = load(NK.notes);
+  notes.unshift({id:uid(), text, category:_noteCat, dept:_noteDept, source:$('note-source').value.trim(), status:null, created:today(), ts:Date.now()});
+  save(NK.notes, notes);
+  $('note-input').value = ''; $('note-source').value = '';
+  renderNotes();
+  if(activeTab === 'home') renderHome();
+}
+
+function cycleNoteStatus(id){
+  const notes = load(NK.notes);
+  const n = notes.find(x => x.id === id);
+  if(!n) return;
+  const idx = NOTE_STATUSES.findIndex(s => s.v === (n.status ?? null));
+  n.status = NOTE_STATUSES[(idx+1) % NOTE_STATUSES.length].v;
+  save(NK.notes, notes);
+  renderNotes();
+}
+
+function deleteNote(id){
+  save(NK.notes, load(NK.notes).filter(n => n.id !== id));
+  renderNotes();
+}
+
+function noteToTask(id){
+  const n = load(NK.notes).find(x => x.id === id);
+  if(!n) return;
+  const dept = n.dept || DEPTS[0].key;
+  openTaskModal(dept);
+  setTimeout(() => { const f = $('lo-task-title'); if(f) f.value = n.text.slice(0,120); }, 50);
+  const notes = load(NK.notes);
+  const i = notes.findIndex(x => x.id === id);
+  if(i >= 0){ notes[i].status = 'in-progress'; save(NK.notes, notes); }
+}
+
+function noteSourceTag(n){
+  if(!n.source) return '';
+  let host = 'Link';
+  try{ host = new URL(n.source).hostname.replace('www.',''); }catch{}
+  return `<a href="${esc(n.source)}" target="_blank" rel="noopener" class="tag" style="text-decoration:none">🔗 ${esc(host)}</a>`;
+}
+
+function renderNotes(){
+  renderNoteChips();
+  const cats = [...new Set(load(NK.notes).map(n => n.category).filter(Boolean))];
+  $('note-filter-chips').innerHTML = `<button type="button" class="chip ${!_noteFilterCat?'on':''}" onclick="_noteFilterCat=null;renderNotes()">All</button>` +
+    cats.map(c => `<button type="button" class="chip ${_noteFilterCat===c?'on':''}" onclick="_noteFilterCat='${c}';renderNotes()">${c}</button>`).join('');
+  let notes = load(NK.notes).sort((a,b) => b.ts - a.ts);
+  if(_noteFilterCat) notes = notes.filter(n => n.category === _noteFilterCat);
+  const st = v => NOTE_STATUSES.find(s => s.v === (v ?? null)) || NOTE_STATUSES[0];
+  $('notes-feed').innerHTML = notes.length ? notes.map(n => `
+    <div class="list-row">
+      <button class="status-pill" style="background:color-mix(in srgb,${st(n.status).color} 18%,transparent);color:${st(n.status).color}" onclick="cycleNoteStatus('${n.id}')">${st(n.status).l}</button>
+      <div style="flex:1;min-width:0">
+        <div class="matrix-task-title">${esc(n.text)}</div>
+        <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span class="tag">${esc(n.category||'')}</span>
+          ${n.dept?`<span class="tag">${deptOf(n.dept).icon} ${deptOf(n.dept).label}</span>`:''}
+          ${noteSourceTag(n)}
+        </div>
+      </div>
+      <button class="delete-btn" onclick="noteToTask('${n.id}')" title="Convert to task">→ Task</button>
+      <button class="delete-btn" onclick="deleteNote('${n.id}')" title="Delete">✕</button>
+    </div>`).join('') : `<div class="empty-state">Nothing captured yet — jot something above.</div>`;
+}
+
+// ---------------------------------------------------------------
+// Goals tab
+// ---------------------------------------------------------------
+const GOAL_COLORS = ['#c084fc','#f472b6','#60a5fa','#34d399','#f59e0b','#22d3ee','#4ade80','#fb923c'];
+const GOAL_CATS = ['Company-wide', ...DEPTS.map(d => d.label)];
+
+function goalsTabHtml(){
+  return `
+    <div id="tab-goals" class="tab-panel ${activeTab==='goals'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-goals)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-goals)">🎯 Goals</div>
+          <div class="ph-sub">What you're building toward.</div>
+        </div>
+        <div class="ph-actions"><button class="btn btn-primary" style="background:var(--t-goals);color:#000" onclick="openGoalModal()">+ Add Goal</button></div>
+      </div>
+      <div id="goals-list"></div>
+    </div>`;
+}
+
+function goalDaysInfo(deadline){
+  if(!deadline) return {label:'No deadline', color:'var(--text-muted)'};
+  const days = Math.ceil((new Date(deadline+'T12:00:00') - new Date()) / 86400000);
+  const color = days < 0 ? 'var(--red)' : days <= 7 ? 'var(--yellow)' : 'var(--text-muted)';
+  const label = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Due today' : days === 1 ? '1 day left' : `${days} days left`;
+  return {label, color};
+}
+
+function renderGoals(){
+  const goals = load(NK.goals).slice().sort((a,b) => (a.deadline||'9999') < (b.deadline||'9999') ? -1 : 1);
+  $('goals-list').innerHTML = goals.length ? goals.map(g => {
+    const di = goalDaysInfo(g.deadline);
+    const color = safeColor(g.color) || 'var(--t-goals)';
+    const ms = g.milestones || [];
+    return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-body">
+        <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:8px">
+          <div>
+            <span class="tag">${esc(g.cat||'General')}</span>
+            <div style="font-size:15px;font-weight:700;margin-top:6px">${esc(g.title)}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${color}">${g.progress||0}%</div>
+            <div style="font-size:10.5px;color:${di.color};margin-top:2px">${di.label}</div>
+          </div>
+        </div>
+        <div class="progress-track" style="margin-bottom:10px"><div class="progress-fill" style="width:${g.progress||0}%;background:${color}"></div></div>
+        ${ms.length ? `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">${ms.map((m,i) => `
+          <div style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;${m.done?'color:var(--text-muted);text-decoration:line-through':''}" onclick="toggleMilestone('${g.id}',${i})">
+            <div class="check-box" style="${m.done?`background:${color};border-color:${color}`:''}">${m.done?'✓':''}</div>${esc(m.text)}
+          </div>`).join('')}</div>` : ''}
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="delete-btn" onclick="openGoalModal('${g.id}')">✏️ Edit</button>
+          <button class="delete-btn" onclick="deleteGoal('${g.id}')">✕ Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty-state">No goals yet — set your first target.</div>`;
+}
+
+function toggleMilestone(id, i){
+  const goals = load(NK.goals);
+  const g = goals.find(x => x.id === id);
+  if(!g || !g.milestones[i]) return;
+  g.milestones[i].done = !g.milestones[i].done;
+  save(NK.goals, goals);
+  renderGoals();
+}
+function deleteGoal(id){
+  save(NK.goals, load(NK.goals).filter(g => g.id !== id));
+  renderGoals();
+  if(activeTab === 'home') renderHome();
+}
+
+function goalModalHtml(g){
+  return `
+    <div class="field"><label>Title *</label><input class="input" id="lo-goal-title" value="${g?esc(g.title):''}" placeholder="What are you working toward?"></div>
+    <div class="field">
+      <label>Category</label>
+      <div class="chip-row" id="lo-goal-cat-chips">${GOAL_CATS.map(c => `<button type="button" class="chip ${g&&g.cat===c?'on':''}" onclick="document.getElementById('lo-goal-cat').value='${c}';document.querySelectorAll('#lo-goal-cat-chips .chip').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${c}</button>`).join('')}</div>
+      <input class="input" id="lo-goal-cat" value="${g?esc(g.cat||''):''}" placeholder="Or type a category…" style="margin-top:8px">
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Deadline</label><input class="input" id="lo-goal-deadline" type="date" value="${g?g.deadline||'':''}"></div>
+      <div class="field"><label>Progress %</label><input class="input" id="lo-goal-progress" type="number" min="0" max="100" value="${g?g.progress||0:0}"></div>
+    </div>
+    <div class="field">
+      <label>Accent Color</label>
+      <div class="chip-row">${GOAL_COLORS.map(c => `<button type="button" onclick="document.getElementById('lo-goal-color').value='${c}';document.querySelectorAll('.goal-color-dot').forEach(b=>b.style.outline='none');this.style.outline='2px solid #fff'" class="goal-color-dot" style="width:26px;height:26px;border-radius:50%;background:${c};border:none;cursor:pointer;padding:0;${g&&g.color===c?'outline:2px solid #fff':''}"></button>`).join('')}</div>
+      <input type="hidden" id="lo-goal-color" value="${g?g.color||GOAL_COLORS[0]:GOAL_COLORS[0]}">
+    </div>
+    <div class="field"><label>Milestones (one per line)</label><textarea class="input" id="lo-goal-milestones" style="min-height:80px">${g&&g.milestones?g.milestones.map(m=>esc(m.text)).join('\n'):''}</textarea></div>`;
+}
+
+function openGoalModal(id){
+  const g = id ? load(NK.goals).find(x => x.id === id) : null;
+  _editingGoal = id || null;
+  $('modalTitle').textContent = id ? 'Edit Goal' : 'New Goal';
+  $('modalBody').innerHTML = goalModalHtml(g);
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveGoalForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-goals)');
+  $('modalOverlay').classList.add('open');
+}
+
+function saveGoalForm(){
+  const title = $('lo-goal-title').value.trim();
+  if(!title){ alert('Goal title required'); return; }
+  const lines = $('lo-goal-milestones').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const goals = load(NK.goals);
+  let prevMilestones = [];
+  if(_editingGoal){
+    const prev = goals.find(g => g.id === _editingGoal);
+    if(prev) prevMilestones = prev.milestones || [];
+  }
+  const milestones = lines.map(text => {
+    const existing = prevMilestones.find(m => m.text === text);
+    return {text, done: existing ? existing.done : false};
+  });
+  const fields = {
+    title,
+    cat: $('lo-goal-cat').value.trim(),
+    deadline: $('lo-goal-deadline').value,
+    progress: Math.max(0, Math.min(100, parseInt($('lo-goal-progress').value) || 0)),
+    color: $('lo-goal-color').value,
+    milestones,
+  };
+  if(_editingGoal){
+    const i = goals.findIndex(g => g.id === _editingGoal);
+    if(i >= 0) goals[i] = {...goals[i], ...fields};
+  } else {
+    goals.unshift({id: uid(), ...fields});
+  }
+  save(NK.goals, goals);
+  closeModal();
+  renderGoals();
+  if(activeTab === 'home') renderHome();
+}
+
+// ---------------------------------------------------------------
+// Habits tab — daily checklist + monthly tracker, mirrors LeanFlow
+// ---------------------------------------------------------------
+let _habitMonthYear = new Date().getFullYear();
+let _habitMonthIdx = new Date().getMonth();
+let _habitDragId = null;
+
+function habitsTabHtml(){
+  return `
+    <div id="tab-habits" class="tab-panel ${activeTab==='habits'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-habits)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-habits)">🔁 Habits</div>
+          <div class="ph-sub">Small daily wins compound into massive results.</div>
+        </div>
+        <div class="ph-actions"><button class="btn btn-primary" style="background:var(--t-habits);color:#000" onclick="openHabitModal()">+ Add Habit</button></div>
+      </div>
+      <div class="stat-grid" id="habit-stats"></div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title" id="habit-month-label">Monthly Tracker</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost" style="padding:4px 10px" onclick="habitMonthPrev()">‹</button>
+            <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px" onclick="habitMonthToday()">This Month</button>
+            <button class="btn btn-ghost" style="padding:4px 10px" onclick="habitMonthNext()">›</button>
+          </div>
+        </div>
+        <div class="card-body" style="overflow-x:auto">
+          <div id="habit-month-grid"></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function habitMonthPrev(){ _habitMonthIdx--; if(_habitMonthIdx<0){_habitMonthIdx=11;_habitMonthYear--;} renderHabits(); }
+function habitMonthNext(){ _habitMonthIdx++; if(_habitMonthIdx>11){_habitMonthIdx=0;_habitMonthYear++;} renderHabits(); }
+function habitMonthToday(){ _habitMonthYear=new Date().getFullYear(); _habitMonthIdx=new Date().getMonth(); renderHabits(); }
+
+function calcStreak(habitId, log){
+  const doneDates = new Set(log.filter(e => e.habitId === habitId).map(e => e.date));
+  const d = new Date();
+  let ds = d.toISOString().slice(0,10);
+  if(!doneDates.has(ds)) d.setDate(d.getDate()-1);
+  let streak = 0;
+  while(doneDates.has(d.toISOString().slice(0,10))){
+    streak++;
+    d.setDate(d.getDate()-1);
+  }
+  return streak;
+}
+
+function habitDragStart(e, id){
+  _habitDragId = id;
+  e.dataTransfer.effectAllowed = 'move';
+}
+function habitDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+function habitDrop(e, targetId){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if(!_habitDragId || _habitDragId === targetId){ _habitDragId = null; return; }
+  const habits = load(NK.habits);
+  const fromIdx = habits.findIndex(h => h.id === _habitDragId);
+  const toIdx = habits.findIndex(h => h.id === targetId);
+  if(fromIdx < 0 || toIdx < 0){ _habitDragId = null; return; }
+  const [moved] = habits.splice(fromIdx, 1);
+  habits.splice(toIdx, 0, moved);
+  save(NK.habits, habits);
+  _habitDragId = null;
+  renderHabits();
+}
+function habitDragEnd(){ _habitDragId = null; }
+
+function toggleHabitDay(habitId, date){
+  const log = load(NK.habitLog);
+  const idx = log.findIndex(e => e.habitId === habitId && e.date === date);
+  if(idx >= 0) log.splice(idx, 1);
+  else log.push({id: uid(), habitId, date});
+  save(NK.habitLog, log);
+  if(activeTab === 'habits') renderHabits();
+  if(activeTab === 'home') renderHome();
+}
+
+function renderHabitStats(){
+  const habits = load(NK.habits);
+  const log = load(NK.habitLog);
+  const todayDone = habits.filter(h => log.some(e => e.habitId === h.id && e.date === today())).length;
+  const bestStreak = habits.length ? Math.max(0, ...habits.map(h => calcStreak(h.id, log))) : 0;
+  $('habit-stats').innerHTML = [
+    {val:habits.length, label:'Total Habits', color:'var(--t-habits)'},
+    {val:todayDone, label:'Done Today', color:'var(--t-habits)'},
+    {val:habits.length-todayDone, label:'Remaining', color:'var(--t-review)'},
+    {val:bestStreak+'🔥', label:'Best Streak', color:'var(--yellow)'},
+  ].map(s => `<div class="stat-tile"><div class="stat-num" style="color:${s.color}">${s.val}</div><div class="stat-label">${s.label}</div></div>`).join('');
+}
+
+function renderHabits(){
+  renderHabitStats();
+  const habits = load(NK.habits);
+  const log = load(NK.habitLog);
+  const year = _habitMonthYear, month = _habitMonthIdx;
+  $('habit-month-label').textContent = new Date(year, month, 1).toLocaleDateString(undefined,{month:'long', year:'numeric'});
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const todayStr = today();
+  const days = [];
+  for(let d=1; d<=daysInMonth; d++) days.push(`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  const grid = $('habit-month-grid');
+  if(!habits.length){
+    grid.innerHTML = `<div class="empty-state">No habits yet — add your first one above.</div>`;
+    return;
+  }
+  const nameW = 152, trailW = 150;
+  const dowHeader = `
+    <div style="display:flex;align-items:center;gap:8px;padding:0 0 6px">
+      <div style="width:${nameW}px;flex-shrink:0"></div>
+      <div style="flex:1;display:flex;gap:3px">
+        ${days.map(ds => {
+          const isT = ds === todayStr;
+          return `<div style="flex:1;min-width:20px;text-align:center;font-size:8px;font-family:'JetBrains Mono',monospace;color:${isT?'var(--t-habits)':'var(--text-muted)'}">${new Date(ds+'T12:00:00').getDate()}</div>`;
+        }).join('')}
+      </div>
+      <div style="width:${trailW}px;flex-shrink:0"></div>
+    </div>`;
+  const rows = habits.map(h => {
+    const doneDates = new Set(log.filter(e => e.habitId === h.id).map(e => e.date));
+    const monthDone = days.filter(ds => doneDates.has(ds)).length;
+    const streak = calcStreak(h.id, log);
+    const cells = days.map(ds => {
+      const isDone = doneDates.has(ds);
+      const isToday = ds === todayStr;
+      return `<div title="${ds}" style="flex:1;min-width:20px;height:20px;border-radius:3px;background:${isDone?'var(--t-habits)':'rgba(255,255,255,.06)'};border:1.5px solid ${isToday?'var(--t-habits)':'transparent'};cursor:pointer" onclick="toggleHabitDay('${h.id}','${ds}')"></div>`;
+    }).join('');
+    return `
+      <div class="habit-row" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--border)" ondragover="habitDragOver(event)" ondrop="habitDrop(event,'${h.id}')" ondragleave="this.classList.remove('drag-over')">
+        <div style="display:flex;align-items:center;gap:8px;width:${nameW}px;flex-shrink:0;overflow:hidden">
+          <span class="habit-drag" draggable="true" ondragstart="habitDragStart(event,'${h.id}')" ondragend="habitDragEnd()" title="Drag to reorder">⠿</span>
+          <span style="font-size:15px">${h.icon||'⭐'}</span>
+          <span style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(h.name)}">${esc(h.name)}</span>
+        </div>
+        <div style="flex:1;display:flex;gap:3px">${cells}</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;width:${trailW}px;justify-content:flex-end">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)">${monthDone}/${daysInMonth}</span>
+          <span style="font-size:11px">${streak}🔥</span>
+          <button class="delete-btn" onclick="openHabitModal('${h.id}')" title="Edit">✏️</button>
+          <button class="delete-btn" onclick="deleteHabit('${h.id}')" title="Delete">✕</button>
+        </div>
+      </div>`;
+  }).join('');
+  grid.innerHTML = dowHeader + rows;
+}
+
+function habitModalHtml(h){
+  return `
+    <div class="field-row">
+      <div class="field"><label>Habit Name *</label><input class="input" id="lo-habit-name" value="${h?esc(h.name):''}" placeholder="Morning workout, Read, Meditate…"></div>
+      <div class="field"><label>Icon (emoji)</label><input class="input" id="lo-habit-icon" value="${h?esc(h.icon||''):''}" placeholder="💪" maxlength="2"></div>
+    </div>`;
+}
+
+function openHabitModal(id){
+  const h = id ? load(NK.habits).find(x => x.id === id) : null;
+  _editingHabit = id || null;
+  $('modalTitle').textContent = id ? 'Edit Habit' : 'New Habit';
+  $('modalBody').innerHTML = habitModalHtml(h);
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveHabitForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-habits)');
+  $('modalOverlay').classList.add('open');
+  setTimeout(() => { const f=$('lo-habit-name'); if(f) f.focus(); }, 100);
+}
+
+function saveHabitForm(){
+  const name = $('lo-habit-name').value.trim();
+  if(!name){ alert('Habit name required'); return; }
+  const icon = $('lo-habit-icon').value.trim() || '⭐';
+  const habits = load(NK.habits);
+  if(_editingHabit){
+    const i = habits.findIndex(h => h.id === _editingHabit);
+    if(i >= 0){ habits[i].name = name; habits[i].icon = icon; }
+  } else {
+    habits.push({id: uid(), name, icon});
+  }
+  save(NK.habits, habits);
+  closeModal();
+  renderHabits();
+  if(activeTab === 'home') renderHome();
+}
+
+function deleteHabit(id){
+  save(NK.habits, load(NK.habits).filter(h => h.id !== id));
+  save(NK.habitLog, load(NK.habitLog).filter(e => e.habitId !== id));
+  renderHabits();
+  if(activeTab === 'home') renderHome();
+}
+
+// ---------------------------------------------------------------
+// Meetings tab (manual entry — no calendar sync)
+// ---------------------------------------------------------------
+const OUTCOME_OPTS = [
+  {v:'closed', l:'Closed ✅', color:'var(--green)'},
+  {v:'follow-up', l:'Follow-Up 🔄', color:'#60a5fa'},
+  {v:'no-show', l:'No Show 🚫', color:'var(--red)'},
+  {v:'cancelled', l:'Cancelled ❌', color:'var(--text-muted)'},
+  {v:'rescheduled', l:'Rescheduled 📅', color:'var(--yellow)'},
+];
+let _mtgDept = null;
+
+function meetingsTabHtml(){
+  return `
+    <div id="tab-meetings" class="tab-panel ${activeTab==='meetings'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-meetings)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-meetings)">📅 Meetings</div>
+          <div class="ph-sub">Client calls, team syncs, and everything in between.</div>
+        </div>
+        <div class="ph-actions"><button class="btn btn-primary" style="background:var(--t-meetings);color:#000" onclick="openMeetingModal()">+ Add Meeting</button></div>
+      </div>
+      <div id="meetings-list"></div>
+    </div>`;
+}
+
+function autoEndTime(start){
+  if(!start) return '';
+  const [h,m] = start.split(':').map(Number);
+  const d = new Date(); d.setHours(h+1, m);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function renderMtgDeptChips(){
+  const el = $('lo-mtg-dept-chips');
+  if(!el) return;
+  el.innerHTML = `<button type="button" class="chip ${!_mtgDept?'on':''}" onclick="_mtgDept=null;renderMtgDeptChips()">General</button>` +
+    DEPTS.map(d => `<button type="button" class="chip ${_mtgDept===d.key?'on':''}" onclick="_mtgDept='${d.key}';renderMtgDeptChips()">${d.icon} ${d.label}</button>`).join('');
+}
+
+function meetingModalHtml(m){
+  return `
+    <div class="field"><label>Department</label><div class="chip-row" id="lo-mtg-dept-chips"></div></div>
+    <div class="field"><label>Title *</label><input class="input" id="lo-mtg-title" value="${m?esc(m.title):''}" placeholder="What's this meeting about?"></div>
+    <div class="field-row">
+      <div class="field"><label>Date *</label><input class="input" id="lo-mtg-date" type="date" value="${m?m.date||'':''}"></div>
+      <div class="field"><label>Start Time</label><input class="input" id="lo-mtg-time" type="time" value="${m?m.time||'':''}" onchange="document.getElementById('lo-mtg-end').value=autoEndTime(this.value)"></div>
+      <div class="field"><label>End Time</label><input class="input" id="lo-mtg-end" type="time" value="${m?m.endTime||'':''}"></div>
+    </div>
+    <div class="field"><label>Attendees</label><input class="input" id="lo-mtg-attendees" value="${m?esc(m.attendees||''):''}" placeholder="Names or emails, comma-separated"></div>
+    <div class="field"><label>Notes</label><textarea class="input" id="lo-mtg-notes">${m?esc(m.notes||''):''}</textarea></div>`;
+}
+
+function openMeetingModal(id){
+  const m = id ? load(NK.meetings).find(x => x.id === id) : null;
+  _editingMeeting = id || null;
+  _mtgDept = m ? (m.dept || null) : null;
+  $('modalTitle').textContent = id ? 'Edit Meeting' : 'New Meeting';
+  $('modalBody').innerHTML = meetingModalHtml(m);
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveMeetingForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-meetings)');
+  renderMtgDeptChips();
+  if(!m) $('lo-mtg-date').value = today();
+  $('modalOverlay').classList.add('open');
+}
+
+function saveMeetingForm(){
+  const title = $('lo-mtg-title').value.trim();
+  const date = $('lo-mtg-date').value;
+  if(!title || !date){ alert('Title and date required'); return; }
+  const meetings = load(NK.meetings);
+  const fields = {
+    title, date,
+    time: $('lo-mtg-time').value,
+    endTime: $('lo-mtg-end').value,
+    dept: _mtgDept,
+    attendees: $('lo-mtg-attendees').value.trim(),
+    notes: $('lo-mtg-notes').value.trim(),
+  };
+  if(_editingMeeting){
+    const i = meetings.findIndex(m => m.id === _editingMeeting);
+    if(i >= 0) meetings[i] = {...meetings[i], ...fields};
+  } else {
+    meetings.unshift({id: uid(), ...fields, done:false, outcome:null, outcomeNotes:''});
+  }
+  save(NK.meetings, meetings);
+  closeModal();
+  renderMeetings();
+  if(activeTab === 'home') renderHome();
+}
+
+function deleteMeeting(id){
+  save(NK.meetings, load(NK.meetings).filter(m => m.id !== id));
+  renderMeetings();
+}
+
+function selectOutcome(v){
+  $('lo-outcome-val').value = v;
+  document.querySelectorAll('#lo-outcome-chips .chip').forEach(b => b.classList.remove('on'));
+  const opt = OUTCOME_OPTS.find(o => o.v === v);
+  const btn = [...document.querySelectorAll('#lo-outcome-chips .chip')].find(b => b.textContent === opt.l);
+  if(btn) btn.classList.add('on');
+}
+
+function openOutcomeModal(id){
+  _outcomeMeetingId = id;
+  const m = load(NK.meetings).find(x => x.id === id);
+  $('modalTitle').textContent = 'Log Outcome';
+  $('modalBody').innerHTML = `
+    <div class="field"><label>Outcome</label><div class="chip-row" id="lo-outcome-chips">${OUTCOME_OPTS.map(o => `<button type="button" class="chip ${m&&m.outcome===o.v?'on':''}" onclick="selectOutcome('${o.v}')">${o.l}</button>`).join('')}</div><input type="hidden" id="lo-outcome-val" value="${m?m.outcome||'':''}"></div>
+    <div class="field"><label>Notes</label><textarea class="input" id="lo-outcome-notes">${m?esc(m.outcomeNotes||''):''}</textarea></div>`;
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveOutcomeForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-meetings)');
+  $('modalOverlay').classList.add('open');
+}
+
+function saveOutcomeForm(){
+  const meetings = load(NK.meetings);
+  const i = meetings.findIndex(m => m.id === _outcomeMeetingId);
+  if(i < 0) return;
+  meetings[i].outcome = $('lo-outcome-val').value || null;
+  meetings[i].outcomeNotes = $('lo-outcome-notes').value.trim();
+  meetings[i].done = true;
+  save(NK.meetings, meetings);
+  closeModal();
+  renderMeetings();
+}
+
+function renderMeetings(){
+  const meetings = load(NK.meetings).slice().sort((a,b) => (a.date+(a.time||'')) < (b.date+(b.time||'')) ? -1 : 1);
+  const upcoming = meetings.filter(m => m.date >= today() && !m.done);
+  const past = meetings.filter(m => m.date < today() || m.done);
+  const row = m => {
+    const oc = OUTCOME_OPTS.find(o => o.v === m.outcome);
+    return `
+    <div class="list-row">
+      <div style="flex:1;min-width:0">
+        <div class="matrix-task-title">${esc(m.title)}</div>
+        <div class="matrix-task-notes">📅 ${fmtDateShort(m.date)}${m.time?' · '+fmtTime(m.time):''}${m.dept?' · '+deptOf(m.dept).icon+' '+deptOf(m.dept).label:''}${m.attendees?' · '+esc(m.attendees):''}</div>
+        ${oc?`<span class="tag" style="margin-top:4px;color:${oc.color}">${oc.l}</span>`:''}
+      </div>
+      <button class="delete-btn" onclick="openOutcomeModal('${m.id}')" title="Log outcome">✓</button>
+      <button class="delete-btn" onclick="openMeetingModal('${m.id}')" title="Edit">✏️</button>
+      <button class="delete-btn" onclick="deleteMeeting('${m.id}')" title="Delete">✕</button>
+    </div>`;
+  };
+  $('meetings-list').innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header"><div class="card-title">Upcoming</div></div>
+      <div>${upcoming.length ? upcoming.map(row).join('') : `<div class="empty-state">Nothing scheduled</div>`}</div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Past</div></div>
+      <div>${past.length ? past.slice(0,15).map(row).join('') : `<div class="empty-state">No past meetings</div>`}</div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------
+// Growth tab — Lessons / Skills / Systems (business-relevant swap
+// for LeanFlow's Vocab/Quotes sub-tabs)
+// ---------------------------------------------------------------
+const GROWTH_SUBTABS = [
+  {key:'lessons', label:'Lessons', icon:'📖'},
+  {key:'skills',  label:'Skills',  icon:'🛠️'},
+  {key:'systems', label:'Systems', icon:'⚙️'},
+];
+const GROWTH_TYPES = [
+  {v:'Book', icon:'📖'}, {v:'Course', icon:'🎓'}, {v:'Video', icon:'🎥'},
+  {v:'Podcast', icon:'🎙️'}, {v:'Article', icon:'📝'}, {v:'Other', icon:'📌'},
+];
+const GROWTH_DOMAINS = ['Marketing','Business','Sales','Finance','Operations','Technical','Leadership','Mindset','Other'];
+let _growthSubtab = 'lessons';
+
+function growthTabHtml(){
+  return `
+    <div id="tab-growth" class="tab-panel ${activeTab==='growth'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-growth)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-growth)">📈 Growth</div>
+          <div class="ph-sub">Lessons, skills, and systems that make the business better.</div>
+        </div>
+        <div class="ph-actions"><button class="btn btn-primary" style="background:var(--t-growth);color:#000" onclick="openGrowthModal()">+ Add</button></div>
+      </div>
+      <div class="sub-tab-bar" id="growth-subtabs"></div>
+      <div id="growth-list"></div>
+    </div>`;
+}
+
+function switchGrowthSubtab(k){
+  _growthSubtab = k;
+  renderGrowth();
+}
+
+function growthModalHtml(g){
+  const cat = g ? g.category : _growthSubtab;
+  const label = {lessons:'Lesson', skills:'Skill', systems:'System'}[cat] || 'Item';
+  const example = cat==='skills' ? 'Cold outreach' : cat==='systems' ? 'Client onboarding checklist' : 'What I learned launching v1';
+  return `
+    <input type="hidden" id="lo-gr-cat" value="${cat}">
+    <div class="field"><label>${label} Name *</label><input class="input" id="lo-gr-title" value="${g?esc(g.title):''}" placeholder="e.g. ${example}"></div>
+    <div class="field-row">
+      <div class="field"><label>Type</label><select class="select" id="lo-gr-type">${GROWTH_TYPES.map(t => `<option value="${t.v}" ${g&&g.type===t.v?'selected':''}>${t.icon} ${t.v}</option>`).join('')}</select></div>
+      <div class="field"><label>Domain</label><select class="select" id="lo-gr-domain">${GROWTH_DOMAINS.map(d => `<option ${g&&g.domain===d?'selected':''}>${d}</option>`).join('')}</select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Source</label><input class="input" id="lo-gr-source" value="${g?esc(g.source||''):''}" placeholder="Author, platform, creator"></div>
+      <div class="field"><label>Date</label><input class="input" id="lo-gr-date" type="date" value="${g?g.date||today():today()}"></div>
+    </div>
+    <div class="field"><label>Link</label><input class="input" id="lo-gr-link" value="${g?esc(g.link||''):''}" placeholder="https://…"></div>
+    ${cat==='skills' ? `
+    <div class="field-row">
+      <div class="field"><label>Status</label><select class="select" id="lo-gr-status">
+        <option value="todo" ${g&&g.status==='todo'?'selected':''}>To Do</option>
+        <option value="active" ${!g||g.status==='active'?'selected':''}>Active</option>
+        <option value="done" ${g&&g.status==='done'?'selected':''}>Done</option>
+      </select></div>
+      <div class="field"><label>Progress %</label><input class="input" id="lo-gr-progress" type="number" min="0" max="100" value="${g?g.progress||0:0}"></div>
+    </div>` : ''}
+    <div class="field"><label>Notes</label><textarea class="input" id="lo-gr-notes" style="min-height:120px">${g?esc(g.notes||''):''}</textarea></div>`;
+}
+
+function openGrowthModal(id){
+  const g = id ? load(NK.growth).find(x => x.id === id) : null;
+  _editingGrowth = id || null;
+  const label = {lessons:'Lesson', skills:'Skill', systems:'System'}[g ? g.category : _growthSubtab];
+  $('modalTitle').textContent = (id ? 'Edit ' : 'New ') + label;
+  $('modalBody').innerHTML = growthModalHtml(g);
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveGrowthForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-growth)');
+  $('modalOverlay').classList.add('open');
+}
+
+function saveGrowthForm(){
+  const title = $('lo-gr-title').value.trim();
+  if(!title){ alert('Name required'); return; }
+  const cat = $('lo-gr-cat').value;
+  const items = load(NK.growth);
+  const fields = {
+    title, category: cat,
+    type: $('lo-gr-type').value,
+    domain: $('lo-gr-domain').value,
+    source: $('lo-gr-source').value.trim(),
+    date: $('lo-gr-date').value || today(),
+    link: $('lo-gr-link').value.trim(),
+    notes: $('lo-gr-notes').value.trim(),
+  };
+  if(cat === 'skills'){
+    fields.status = $('lo-gr-status').value;
+    fields.progress = Math.max(0, Math.min(100, parseInt($('lo-gr-progress').value) || 0));
+  }
+  if(_editingGrowth){
+    const i = items.findIndex(x => x.id === _editingGrowth);
+    if(i >= 0) items[i] = {...items[i], ...fields};
+  } else {
+    items.unshift({id: uid(), ...fields});
+  }
+  save(NK.growth, items);
+  closeModal();
+  renderGrowth();
+}
+
+function deleteGrowth(id){
+  save(NK.growth, load(NK.growth).filter(x => x.id !== id));
+  renderGrowth();
+}
+
+function renderGrowth(){
+  $('growth-subtabs').innerHTML = GROWTH_SUBTABS.map(s => `<button type="button" class="sub-tab-btn ${s.key===_growthSubtab?'on':''}" onclick="switchGrowthSubtab('${s.key}')">${s.icon} ${s.label}</button>`).join('');
+  const items = load(NK.growth).filter(x => x.category === _growthSubtab).sort((a,b) => (b.date||'') < (a.date||'') ? -1 : 1);
+  const typeIcon = t => (GROWTH_TYPES.find(x => x.v === t) || {}).icon || '📌';
+  $('growth-list').innerHTML = items.length ? `<div class="card">${items.map(g => `
+    <div class="list-row">
+      <div style="font-size:16px;flex-shrink:0">${typeIcon(g.type)}</div>
+      <div style="flex:1;min-width:0">
+        <div class="matrix-task-title">${esc(g.title)}</div>
+        <div class="matrix-task-notes">${esc(g.type||'')}${g.source?' · '+esc(g.source):''}${g.date?' · '+fmtDateShort(g.date):''}</div>
+        ${g.notes?`<div class="matrix-task-notes" style="margin-top:3px">${esc(g.notes.slice(0,140))}</div>`:''}
+        <div style="margin-top:5px"><span class="tag">${esc(g.domain||'')}</span>${g.category==='skills'?`<span class="tag" style="margin-left:6px">${esc(g.status||'active')} · ${g.progress||0}%</span>`:''}</div>
+        ${g.category==='skills'?`<div class="progress-track" style="margin-top:6px"><div class="progress-fill" style="width:${g.progress||0}%;background:var(--t-growth)"></div></div>`:''}
+      </div>
+      <button class="delete-btn" onclick="openGrowthModal('${g.id}')">✏️</button>
+      <button class="delete-btn" onclick="deleteGrowth('${g.id}')">✕</button>
+    </div>`).join('')}</div>` : `<div class="empty-state">Nothing here yet.</div>`;
+}
+
+// ---------------------------------------------------------------
+// Weekly Review tab
+// ---------------------------------------------------------------
+function reviewTabHtml(){
+  return `
+    <div id="tab-review" class="tab-panel ${activeTab==='review'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-review)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-review)">📊 Weekly Review</div>
+          <div class="ph-sub">Reflect, reset, and plan the week ahead.</div>
+        </div>
+      </div>
+      <div class="stat-grid" id="review-scorecard"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">This Week</div></div>
+          <div class="card-body">
+            <div class="slider-row"><label><span>Overall</span><span id="rv-overall-val">7</span></label><input type="range" min="1" max="10" value="7" id="rv-overall" oninput="document.getElementById('rv-overall-val').textContent=this.value"></div>
+            <div class="slider-row"><label><span>Energy</span><span id="rv-energy-val">7</span></label><input type="range" min="1" max="10" value="7" id="rv-energy" oninput="document.getElementById('rv-energy-val').textContent=this.value"></div>
+            <div class="slider-row"><label><span>Focus</span><span id="rv-focus-val">7</span></label><input type="range" min="1" max="10" value="7" id="rv-focus" oninput="document.getElementById('rv-focus-val').textContent=this.value"></div>
+            <div class="field"><label>3 Biggest Wins</label><textarea class="input" id="rv-wins"></textarea></div>
+            <div class="field"><label>What Held Me Back</label><textarea class="input" id="rv-losses"></textarea></div>
+            <div class="field"><label>Next Week's #1 Priority</label><textarea class="input" id="rv-priority"></textarea></div>
+            <div class="field"><label>What Would Make Next Week a 10/10?</label><textarea class="input" id="rv-vision"></textarea></div>
+            <button class="btn btn-primary" style="background:var(--t-review);color:#000" onclick="saveReview()">Save Weekly Review</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Review History</div></div>
+          <div id="review-history"></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function weekSunday(d = new Date()){
+  const dt = new Date(d); dt.setDate(dt.getDate() - dt.getDay());
+  return dt.toISOString().slice(0,10);
+}
+function fmtWeekRange(sunday){
+  const s = new Date(sunday+'T12:00:00');
+  const e = new Date(s); e.setDate(e.getDate()+6);
+  const fmt = d => d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  return `${fmt(s)} - ${fmt(e)}`;
+}
+
+function saveReview(){
+  const week = weekSunday();
+  const fields = {
+    week,
+    overall: parseInt($('rv-overall').value),
+    energy: parseInt($('rv-energy').value),
+    focus: parseInt($('rv-focus').value),
+    wins: $('rv-wins').value.trim(),
+    losses: $('rv-losses').value.trim(),
+    priority: $('rv-priority').value.trim(),
+    vision: $('rv-vision').value.trim(),
+    ts: Date.now(),
+  };
+  const reviews = load(NK.reviews);
+  const i = reviews.findIndex(r => r.week === week);
+  if(i >= 0) reviews[i] = {...reviews[i], ...fields};
+  else reviews.unshift({id: uid(), ...fields});
+  save(NK.reviews, reviews);
+  ['rv-overall','rv-energy','rv-focus'].forEach(id => { $(id).value = 7; $(id+'-val').textContent = 7; });
+  ['rv-wins','rv-losses','rv-priority','rv-vision'].forEach(id => $(id).value = '');
+  showToast('Weekly review saved');
+  renderReview();
+}
+
+function loadReview(id){
+  const r = load(NK.reviews).find(x => x.id === id);
+  if(!r) return;
+  $('rv-overall').value = r.overall; $('rv-overall-val').textContent = r.overall;
+  $('rv-energy').value = r.energy; $('rv-energy-val').textContent = r.energy;
+  $('rv-focus').value = r.focus; $('rv-focus-val').textContent = r.focus;
+  $('rv-wins').value = r.wins || ''; $('rv-losses').value = r.losses || '';
+  $('rv-priority').value = r.priority || ''; $('rv-vision').value = r.vision || '';
+}
+
+function renderReview(){
+  const tasks = allDeptTasks();
+  const weekAgo = new Date(Date.now() - 7*86400000).toISOString().slice(0,10);
+  const doneThisWeek = tasks.filter(t => t.done && t.due && t.due >= weekAgo).length;
+  const openCount = tasks.filter(t => !t.done).length;
+  const goals = load(NK.goals);
+  const goalAvg = goals.length ? Math.round(goals.reduce((s,g) => s + (g.progress||0), 0) / goals.length) : 0;
+  const habits = load(NK.habits);
+  const habitLog = load(NK.habitLog);
+  const last7Days = []; for(let i=6;i>=0;i--){ const x=new Date(); x.setDate(x.getDate()-i); last7Days.push(x.toISOString().slice(0,10)); }
+  const habitConsistency = habits.length ? Math.round(last7Days.reduce((sum,day) => sum + (habitLog.filter(e => e.date===day).length/habits.length)*100, 0)/7) : 0;
+  const taskScore = Math.min(100, doneThisWeek * 10);
+  const weeklyScore = Math.round((taskScore + goalAvg + habitConsistency) / 3);
+  $('review-scorecard').innerHTML = `
+    <div class="stat-tile"><div class="stat-num" style="color:var(--t-review)">${weeklyScore}</div><div class="stat-label">Weekly Score</div></div>
+    <div class="stat-tile"><div class="stat-num">${taskScore}%</div><div class="stat-label">Tasks Completed</div></div>
+    <div class="stat-tile"><div class="stat-num">${habitConsistency}%</div><div class="stat-label">Habit Consistency</div></div>
+    <div class="stat-tile"><div class="stat-num">${goalAvg}%</div><div class="stat-label">Goal Progress</div></div>
+    <div class="stat-tile"><div class="stat-num">${openCount}</div><div class="stat-label">Open Tasks</div></div>`;
+
+  const reviews = load(NK.reviews).sort((a,b) => b.week < a.week ? -1 : 1);
+  $('review-history').innerHTML = reviews.length ? reviews.map(r => `
+    <div class="list-row" style="cursor:pointer" onclick="loadReview('${r.id}')">
+      <div style="flex:1">
+        <div class="matrix-task-title">Week of ${fmtWeekRange(r.week)} — ${r.overall}/10</div>
+        <div class="progress-track" style="margin:6px 0"><div class="progress-fill" style="width:${r.overall*10}%;background:var(--t-review)"></div></div>
+        <div class="matrix-task-notes">${esc((r.priority||'').slice(0,80))}</div>
+      </div>
+    </div>`).join('') : `<div class="empty-state">No reviews yet</div>`;
+}
+
+// ---------------------------------------------------------------
+// Sidebar + tabs
+// ---------------------------------------------------------------
+function navBtn(t){
+  const pillHtml = t.pill===false ? '' : `<span class="nav-pill" id="pill-${t.key}" style="background:color-mix(in srgb,${t.color} 18%,transparent);color:${t.color}">0</span>`;
+  return `<button class="nav-btn ${t.key===activeTab?'active':''}" data-tab="${t.key}" style="--tab-color:${t.color}" onclick="switchTab('${t.key}')">
+    <span class="nav-emoji">${t.icon}</span>${t.label}${pillHtml}
+  </button>`;
+}
+
+function deptTabHtml(d){
+  return `
+    <div id="tab-${d.key}" class="tab-panel ${d.key===activeTab?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:${d.color}">LeanOffice</div>
+          <div class="ph-title" style="color:${d.color}">${d.icon} ${d.label}</div>
+          <div class="ph-sub">${d.desc}</div>
+        </div>
+        <div class="ph-actions">
+          <button class="btn btn-primary" style="background:${d.color};color:#000" onclick="openTaskModal('${d.key}')">+ Add Task</button>
+        </div>
+      </div>
+      <div id="matrix-${d.key}"></div>
+    </div>`;
+}
+
+const RENDER_FNS = {
+  home: renderHome, notes: renderNotes, goals: renderGoals, habits: renderHabits,
+  meetings: renderMeetings, growth: renderGrowth, review: renderReview,
+};
+
+function buildShell(){
+  $('sbNav').innerHTML = `
+    <div class="sb-section">Overview</div>
+    ${NAV_STATIC.map(navBtn).join('')}
+    <div class="sb-section">Departments</div>
+    ${DEPTS.map(navBtn).join('')}`;
+
+  $('mainTabs').innerHTML = [
+    homeTabHtml(), notesTabHtml(), goalsTabHtml(), habitsTabHtml(), meetingsTabHtml(), growthTabHtml(), reviewTabHtml(),
+    ...DEPTS.map(deptTabHtml),
+  ].join('');
+
+  $('sbDate').textContent = new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+  document.documentElement.style.setProperty('--tab-color', NAV.find(t => t.key === activeTab).color);
+}
+
+function switchTab(id){
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  $('tab-' + id).classList.add('active');
+  const btn = document.querySelector(`.nav-btn[data-tab="${id}"]`);
+  if(btn) btn.classList.add('active');
+  const t = NAV.find(x => x.key === id);
+  document.documentElement.style.setProperty('--tab-color', t.color);
+  activeTab = id;
+  $('mobTitle').textContent = t.label;
+  if(RENDER_FNS[id]) RENDER_FNS[id](); else renderMatrix(id);
+  if(window.innerWidth <= 768) closeMobSidebar();
+}
+
+function init(){
+  buildShell();
+  DEPTS.forEach(d => renderMatrix(d.key));
+  renderHome(); renderNotes(); renderGoals(); renderHabits(); renderMeetings(); renderGrowth(); renderReview();
+  updateAllPills();
+}
+
+// ---------------------------------------------------------------
+// Mobile sidebar
+// ---------------------------------------------------------------
+function openMobSidebar(){ $('sidebar').classList.add('open'); $('mobBackdrop').classList.add('open'); }
+function closeMobSidebar(){ $('sidebar').classList.remove('open'); $('mobBackdrop').classList.remove('open'); }
+
+// ---------------------------------------------------------------
+// Toast
+// ---------------------------------------------------------------
+let _toastTimer = null;
+function showToast(msg){
+  const el = $('appToast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ---------------------------------------------------------------
+// Supabase — shares LeanFlow's project/auth, own sync table
+// ---------------------------------------------------------------
+const _SB_URL = 'https://eewyzqyxwwkdimonltjy.supabase.co';
+const _SB_KEY = 'sb_publishable_qgfJXOAlB33B2mDNqeWAUQ_nFpBv-bN';
+const _SB_TABLE = 'leanoffice_sync';
+const _SYNC_TS_KEY = '_lo_last_sync';
+const _PENDING_KEY = '_lo_pending';
+const SYNC_COLS = [...DEPTS.map(d => d.key), 'notes', 'goals', 'habits', 'habitLog', 'meetings', 'growth', 'reviews'];
+let _sb = null, _sbUser = null, _bgPollTimer = null;
+
+function initSupabase(){
+  if(typeof supabase !== 'undefined') _sb = supabase.createClient(_SB_URL, _SB_KEY);
+}
+
+function setSyncStatus(state, label){
+  const dot = $('syncDot'), lbl = $('syncLabel'), btn = $('syncLogoutBtn');
+  if(!dot) return;
+  dot.className = 'sync-dot' + (state==='on' ? '' : state==='syncing' ? ' syncing' : ' off');
+  lbl.textContent = label;
+  if(btn) btn.style.display = state==='on' ? 'inline' : 'none';
+}
+
+function _colName(k){ return k.replace(/^lo_/, ''); }
+function _colKey(col){ return 'lo_' + col; }
+
+function _toRows(arr){
+  if(!Array.isArray(arr)) return [];
+  return arr.filter(x => x && x.id).map(x => ({item_id: x.id, value: x}));
+}
+
+async function sbPush(k, v, oldRaw){
+  if(!_sb || !_sbUser) return;
+  const col = _colName(k);
+  if(!SYNC_COLS.includes(col)) return; // ignore unrelated localStorage keys
+  const ts = new Date().toISOString();
+  const rows = _toRows(v);
+  try{
+    if(rows.length){
+      await _sb.from(_SB_TABLE).upsert(
+        rows.map(r => ({user_id:_sbUser.id, collection:col, item_id:r.item_id, value:r.value, updated_at:ts})),
+        {onConflict:'user_id,collection,item_id'}
+      );
+    }
+    if(oldRaw){
+      let oldArr; try{ oldArr = JSON.parse(oldRaw); }catch{ oldArr = []; }
+      if(Array.isArray(oldArr) && Array.isArray(v)){
+        const newIds = new Set(v.map(x => x && x.id));
+        const deleted = oldArr.filter(x => x && x.id && !newIds.has(x.id));
+        if(deleted.length){
+          await _sb.from(_SB_TABLE).upsert(
+            deleted.map(x => ({user_id:_sbUser.id, collection:col, item_id:x.id, value:null, updated_at:ts})),
+            {onConflict:'user_id,collection,item_id'}
+          );
+        }
+      }
+    }
+    _sbClearPending(k);
+  }catch(e){
+    console.warn('LeanOffice sync push error', e);
+    _sbQueuePending(k, v);
+  }
+}
+
+async function _sbDoPull(){
+  const lastSync = localStorage.getItem(_SYNC_TS_KEY);
+  let q = _sb.from(_SB_TABLE).select('collection,item_id,value,updated_at').eq('user_id', _sbUser.id);
+  if(lastSync) q = q.gt('updated_at', lastSync);
+  const {data, error} = await q;
+  if(!error && data && data.length){
+    const byCol = {};
+    data.forEach(r => { (byCol[r.collection] || (byCol[r.collection] = [])).push(r); });
+    Object.entries(byCol).forEach(([col, rows]) => {
+      if(!SYNC_COLS.includes(col)) return;
+      const k = _colKey(col);
+      let local; try{ local = JSON.parse(localStorage.getItem(k) || '[]'); }catch{ local = []; }
+      const byId = new Map((Array.isArray(local)?local:[]).map(x => [x.id, x]));
+      rows.forEach(r => {
+        if(r.value === null) byId.delete(r.item_id);
+        else byId.set(r.item_id, r.value);
+      });
+      localStorage.setItem(k, JSON.stringify([...byId.values()]));
+    });
+    const maxTs = data.reduce((m,r) => r.updated_at > m ? r.updated_at : m, '');
+    if(maxTs) localStorage.setItem(_SYNC_TS_KEY, maxTs);
+  } else if(!lastSync){
+    localStorage.setItem(_SYNC_TS_KEY, new Date().toISOString());
+  }
+  await sbFlushPending();
+}
+
+function _sbQueuePending(k, v){
+  try{ const p = JSON.parse(localStorage.getItem(_PENDING_KEY) || '{}'); p[k] = {v, ts:Date.now()}; localStorage.setItem(_PENDING_KEY, JSON.stringify(p)); }catch{}
+}
+function _sbClearPending(k){
+  try{ const p = JSON.parse(localStorage.getItem(_PENDING_KEY) || '{}'); if(p[k]){ delete p[k]; localStorage.setItem(_PENDING_KEY, JSON.stringify(p)); } }catch{}
+}
+async function sbFlushPending(){
+  if(!_sb || !_sbUser) return;
+  let p; try{ p = JSON.parse(localStorage.getItem(_PENDING_KEY) || '{}'); }catch{ return; }
+  const keys = Object.keys(p);
+  if(!keys.length) return;
+  for(const k of keys){
+    try{
+      const raw = localStorage.getItem(k);
+      if(raw === null){ delete p[k]; continue; }
+      await sbPush(k, JSON.parse(raw));
+      delete p[k];
+    }catch(e){ console.warn('LeanOffice flush error', k, e); }
+  }
+  localStorage.setItem(_PENDING_KEY, JSON.stringify(p));
+}
+
+function startBgPoll(){
+  if(_bgPollTimer) return;
+  _bgPollTimer = setInterval(async () => {
+    if(!_sb || !_sbUser) return;
+    try{
+      await _sbDoPull();
+      DEPTS.forEach(d => renderMatrix(d.key));
+      renderHome(); renderNotes(); renderGoals(); renderHabits(); renderMeetings(); renderGrowth(); renderReview();
+      updateAllPills();
+    }catch(e){ console.warn('LeanOffice background poll error', e); }
+  }, 60000);
+}
+
+async function sbPullAndStart(){
+  setSyncStatus('syncing', 'Syncing…');
+  const btn = $('auth-btn');
+  if(btn){ btn.textContent = 'Syncing data…'; btn.disabled = true; }
+  const pullTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Sync timed out')), 12000));
+  try{
+    await Promise.race([_sbDoPull(), pullTimeout]);
+  }catch(e){
+    console.warn('LeanOffice pull error — starting with local data', e);
+    showToast('Sync timed out — showing local data');
+  }
+  const email = _sbUser.email || 'Synced';
+  setSyncStatus('on', _sbUser.user_metadata?.full_name || email.split('@')[0]);
+  $('auth-screen').style.display = 'none';
+  if(btn){ btn.textContent = 'Sign In'; btn.disabled = false; }
+  init();
+  startBgPoll();
+}
+
+async function sbCheckSession(){
+  if(!_sb) return;
+  try{
+    const {data:{session}} = await _sb.auth.getSession();
+    if(session){ _sbUser = session.user; await sbPullAndStart(); }
+    else{ $('auth-screen').style.display = 'flex'; }
+  }catch(e){
+    console.warn('LeanOffice session check failed', e);
+    $('auth-screen').style.display = 'flex';
+  }
+}
+
+function switchAuthTab(which){
+  const inTab = $('auth-tab-in'), upTab = $('auth-tab-up'), nameField = $('auth-name-field'), btn = $('auth-btn');
+  const isUp = which === 'up';
+  inTab.classList.toggle('on', !isUp);
+  upTab.classList.toggle('on', isUp);
+  nameField.style.display = isUp ? 'block' : 'none';
+  btn.textContent = isUp ? 'Sign Up' : 'Sign In';
+  $('auth-err').textContent = '';
+}
+
+function skipAuth(){
+  $('auth-screen').style.display = 'none';
+  init();
+}
+
+async function doAuth(){
+  const email = ($('auth-email')||{value:''}).value.trim();
+  const pass = ($('auth-password')||{value:''}).value;
+  const isSignUp = $('auth-tab-up').classList.contains('on');
+  const name = isSignUp ? ($('auth-name')||{value:''}).value.trim() : '';
+  const errEl = $('auth-err'), btn = $('auth-btn');
+  const showErr = msg => { errEl.style.color = 'var(--red)'; errEl.textContent = msg; };
+  if(isSignUp && !name){ showErr('Please enter your name.'); return; }
+  if(!email || !pass){ showErr('Email and password required.'); return; }
+  if(!_sb){ showErr('Connection unavailable. Use "Use without account" to continue offline.'); return; }
+  btn.textContent = 'Loading…'; btn.disabled = true; errEl.textContent = '';
+  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Request timed out — check your connection and try again.')), 12000));
+  try{
+    if(isSignUp){
+      const {error:e} = await Promise.race([_sb.auth.signUp({email, password:pass, options:{data:{full_name:name}}}), timeout]);
+      if(e) throw e;
+      errEl.style.color = 'var(--green)'; errEl.textContent = 'Account created! Signing you in…';
+    }
+    const {data, error} = await Promise.race([_sb.auth.signInWithPassword({email, password:pass}), timeout]);
+    if(error) throw error;
+    _sbUser = data.user;
+    await sbPullAndStart();
+  }catch(e){
+    showErr(e.message || 'Authentication failed.');
+    btn.textContent = isSignUp ? 'Sign Up' : 'Sign In';
+    btn.disabled = false;
+  }
+}
+
+async function doSignOut(){
+  if(_sb) await _sb.auth.signOut();
+  _sbUser = null;
+  clearInterval(_bgPollTimer); _bgPollTimer = null;
+  localStorage.removeItem(_SYNC_TS_KEY);
+  setSyncStatus('off', 'Not signed in');
+  $('auth-screen').style.display = 'flex';
+  $('auth-password').value = '';
+  $('auth-err').textContent = '';
+  $('auth-btn').textContent = 'Sign In';
+  $('auth-btn').disabled = false;
+}
+
+// ---------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------
+initSupabase();
+if(_sb){ sbCheckSession(); }
+else { $('auth-screen').style.display = 'none'; init(); }
+</script>
+</body>
+</html>

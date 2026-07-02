@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#04070e"/>
+  <!-- Subtle border -->
+  <rect x="3" y="3" width="506" height="506" rx="94" fill="none" stroke="#60a5fa" stroke-width="3" opacity="0.25"/>
+  <!-- Top blue line accent -->
+  <rect x="96" y="96" width="320" height="3" rx="2" fill="#60a5fa" opacity="0.15"/>
+
+  <!-- L — left -->
+  <rect x="106" y="112" width="48" height="242" rx="8" fill="#60a5fa"/>
+  <rect x="106" y="308" width="110" height="46" rx="8" fill="#60a5fa"/>
+
+  <!-- O — right -->
+  <circle cx="336" cy="233" r="97" fill="none" stroke="#60a5fa" stroke-width="48"/>
+</svg>
