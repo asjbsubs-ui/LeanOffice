@@ -783,9 +783,73 @@ function renderNotes(){
           ${noteSourceTag(n)}
         </div>
       </div>
+      <button class="delete-btn" onclick="editNote('${n.id}')" title="Edit" style="font-size:13px">✏️</button>
       <button class="delete-btn" onclick="noteToTask('${n.id}')" title="Convert to task">→ Task</button>
       <button class="delete-btn" onclick="deleteNote('${n.id}')" title="Delete">✕</button>
     </div>`).join('') : `<div class="empty-state">Nothing captured yet — jot something above.</div>`;
+}
+
+let _editingNote = null;
+
+function noteModalHtml(){
+  return `
+    <div class="field"><label>Note</label><textarea class="input" id="lo-note-text" style="min-height:70px"></textarea></div>
+    <div class="field">
+      <label>Category</label>
+      <div class="chip-row" id="lo-note-cat-chips"></div>
+      <div class="field" id="lo-note-cat-custom-wrap" style="display:none;margin-top:8px;margin-bottom:0">
+        <input class="input" id="lo-note-cat-custom" placeholder="Type a custom category..." oninput="setEditNoteCustomCat(this.value)">
+      </div>
+    </div>
+    <div class="field"><label>Department</label><div class="chip-row" id="lo-note-dept-chips"></div></div>
+    <div class="field"><label>Source link (optional)</label><input class="input" id="lo-note-source" placeholder="https://..."></div>`;
+}
+
+function renderEditNoteChips(){
+  const isCustomCat = !NOTE_CATS.includes(_editingNote.category);
+  $('lo-note-cat-chips').innerHTML = NOTE_CATS.map(c => `<button type="button" class="chip ${c===_editingNote.category?'on':''}" onclick="selectEditNoteCat('${c}')">${c}</button>`).join('')
+    + `<button type="button" class="chip ${isCustomCat?'on':''}" onclick="showEditNoteCustomCat()">✏️ ${isCustomCat?esc(_editingNote.category||''):'Custom'}</button>`;
+  $('lo-note-dept-chips').innerHTML = `<button type="button" class="chip ${!_editingNote.dept?'on':''}" onclick="_editingNote.dept=null;renderEditNoteChips()">General</button>` +
+    DEPTS.map(d => `<button type="button" class="chip ${_editingNote.dept===d.key?'on':''}" onclick="_editingNote.dept='${d.key}';renderEditNoteChips()">${d.icon} ${d.label}</button>`).join('');
+}
+
+function selectEditNoteCat(c){ _editingNote.category = c; $('lo-note-cat-custom-wrap').style.display = 'none'; renderEditNoteChips(); }
+function showEditNoteCustomCat(){
+  $('lo-note-cat-custom-wrap').style.display = '';
+  const inp = $('lo-note-cat-custom');
+  inp.value = NOTE_CATS.includes(_editingNote.category) ? '' : (_editingNote.category || '');
+  inp.focus();
+}
+function setEditNoteCustomCat(v){ _editingNote.category = v.trim() || NOTE_CATS[0]; renderEditNoteChips(); }
+
+function editNote(id){
+  const n = load(NK.notes).find(x => x.id === id);
+  if(!n) return;
+  _editingNote = {id: n.id, category: n.category, dept: n.dept};
+  $('modalTitle').textContent = 'Edit Note';
+  $('modalBody').innerHTML = noteModalHtml();
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveNoteForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-notes)');
+  $('modalOverlay').classList.add('open');
+  $('lo-note-text').value = n.text || '';
+  $('lo-note-source').value = n.source || '';
+  renderEditNoteChips();
+  setTimeout(() => { const f = $('lo-note-text'); if(f) f.focus(); }, 100);
+}
+
+function saveNoteForm(){
+  const text = $('lo-note-text').value.trim();
+  if(!text){ alert('Note text required'); return; }
+  const notes = load(NK.notes);
+  const i = notes.findIndex(n => n.id === _editingNote.id);
+  if(i >= 0){
+    notes[i] = {...notes[i], text, category: _editingNote.category, dept: _editingNote.dept, source: $('lo-note-source').value.trim()};
+    save(NK.notes, notes);
+  }
+  closeModal();
+  renderNotes();
+  if(activeTab === 'home') renderHome();
 }
 
 // ---------------------------------------------------------------
