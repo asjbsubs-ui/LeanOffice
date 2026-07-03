@@ -181,13 +181,13 @@ textarea.input{resize:vertical;min-height:64px}
 .mob-header{display:none}
 .mob-backdrop{display:none}
 @media(max-width:768px){
-  .mob-header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg)}
-  .mob-hamburger{background:transparent;border:1px solid var(--border-md);color:var(--text-primary);border-radius:var(--r-sm);width:34px;height:34px;font-size:16px;cursor:pointer}
+  .mob-header{display:flex;align-items:center;gap:12px;padding:0 16px;padding-top:env(safe-area-inset-top);padding-left:calc(16px + env(safe-area-inset-left));padding-right:calc(16px + env(safe-area-inset-right));border-bottom:1px solid var(--border);background:var(--bg);position:fixed;top:0;left:0;right:0;z-index:300;min-height:54px}
+  .shell{flex-direction:column;padding-top:calc(54px + env(safe-area-inset-top))}
+  .mob-hamburger{background:transparent;border:1px solid var(--border-md);color:var(--text-primary);border-radius:var(--r-sm);width:38px;height:38px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;-webkit-tap-highlight-color:transparent}
   .mob-title{font-family:'Orbitron',monospace;font-size:13px;font-weight:800}
-  .shell{flex-direction:column}
-  .sidebar{position:fixed;top:0;left:0;bottom:0;transform:translateX(-100%);transition:transform .2s;z-index:200}
+  .sidebar{position:fixed;top:0;left:0;bottom:0;transform:translateX(-100%);transition:transform .2s;z-index:400;padding-top:env(safe-area-inset-top)}
   .sidebar.open{transform:translateX(0)}
-  .mob-backdrop.open{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150}
+  .mob-backdrop.open{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:390}
   .matrix-grid{grid-template-columns:1fr!important}
   .field-row{flex-direction:column;gap:0}
 }
@@ -678,6 +678,9 @@ function notesTabHtml(){
         <div class="card-body">
           <textarea class="input" id="note-input" placeholder="Capture an idea, quick thought, or note... (Cmd/Ctrl+Enter to save)" style="min-height:70px" onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter')saveNote()"></textarea>
           <div style="margin-top:10px" class="chip-row" id="note-cat-chips"></div>
+          <div class="field" id="note-cat-custom-wrap" style="display:none;margin-top:8px;margin-bottom:0">
+            <input class="input" id="note-cat-custom" placeholder="Type a custom category..." oninput="setCustomNoteCat(this.value)">
+          </div>
           <div style="margin-top:8px" class="chip-row" id="note-dept-chips"></div>
           <div class="field" style="margin-top:10px;margin-bottom:0"><input class="input" id="note-source" placeholder="Source link (optional)"></div>
           <button class="btn btn-primary" style="margin-top:10px;background:var(--t-notes)" onclick="saveNote()">+ Capture</button>
@@ -689,9 +692,29 @@ function notesTabHtml(){
 }
 
 function renderNoteChips(){
-  $('note-cat-chips').innerHTML = NOTE_CATS.map(c => `<button type="button" class="chip ${c===_noteCat?'on':''}" onclick="_noteCat='${c}';renderNoteChips()">${c}</button>`).join('');
+  const isCustomCat = !NOTE_CATS.includes(_noteCat);
+  $('note-cat-chips').innerHTML = NOTE_CATS.map(c => `<button type="button" class="chip ${c===_noteCat?'on':''}" onclick="selectNoteCat('${c}')">${c}</button>`).join('')
+    + `<button type="button" class="chip ${isCustomCat?'on':''}" onclick="showCustomNoteCat()">✏️ ${isCustomCat?esc(_noteCat):'Custom'}</button>`;
   $('note-dept-chips').innerHTML = `<button type="button" class="chip ${!_noteDept?'on':''}" onclick="_noteDept=null;renderNoteChips()">General</button>` +
     DEPTS.map(d => `<button type="button" class="chip ${_noteDept===d.key?'on':''}" onclick="_noteDept='${d.key}';renderNoteChips()">${d.icon} ${d.label}</button>`).join('');
+}
+
+function selectNoteCat(c){
+  _noteCat = c;
+  $('note-cat-custom-wrap').style.display = 'none';
+  renderNoteChips();
+}
+
+function showCustomNoteCat(){
+  $('note-cat-custom-wrap').style.display = '';
+  const inp = $('note-cat-custom');
+  inp.value = NOTE_CATS.includes(_noteCat) ? '' : _noteCat;
+  inp.focus();
+}
+
+function setCustomNoteCat(v){
+  _noteCat = v.trim() || NOTE_CATS[0];
+  renderNoteChips();
 }
 
 function saveNote(){
@@ -725,7 +748,10 @@ function noteToTask(id){
   if(!n) return;
   const dept = n.dept || DEPTS[0].key;
   openTaskModal(dept);
-  setTimeout(() => { const f = $('lo-task-title'); if(f) f.value = n.text.slice(0,120); }, 50);
+  setTimeout(() => {
+    const f = $('lo-task-title'); if(f) f.value = n.text.slice(0,120);
+    const d = $('lo-task-due'); if(d) d.value = today();
+  }, 50);
   const notes = load(NK.notes);
   const i = notes.findIndex(x => x.id === id);
   if(i >= 0){ notes[i].status = 'in-progress'; save(NK.notes, notes); }
