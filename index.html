@@ -67,6 +67,19 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .nav-emoji{font-size:16px;flex-shrink:0;width:20px;text-align:center;transition:transform .15s;line-height:1}
 .nav-btn:hover .nav-emoji{transform:scale(1.15)}
 .nav-pill{margin-left:auto;min-width:18px;height:16px;border-radius:99px;font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;justify-content:center;padding:0 5px}
+.sb-biz{padding:10px 14px;border-bottom:1px solid var(--border);position:relative}
+.biz-btn{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border-radius:var(--r-sm);border:1px solid var(--border-md);background:var(--bg-card);color:var(--text-primary);cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px;font-weight:600;text-align:left}
+.biz-btn:hover{background:var(--bg-hover)}
+.biz-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.biz-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.biz-caret{font-size:9px;color:var(--text-muted);flex-shrink:0}
+.biz-dropdown{position:absolute;top:100%;left:14px;right:14px;margin-top:4px;background:var(--bg-alt);border:1px solid var(--border-md);border-radius:var(--r-md);box-shadow:0 16px 40px rgba(0,0,0,.5);z-index:200;display:none;overflow:hidden}
+.biz-dropdown.open{display:block}
+.biz-opt{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;font-size:12.5px;color:var(--text-secondary)}
+.biz-opt:hover{background:var(--bg-hover);color:var(--text-primary)}
+.biz-opt.active{color:var(--accent)}
+.biz-opt-new{border-top:1px solid var(--border);color:var(--accent);font-weight:600}
+.biz-color-dot{width:26px;height:26px;border-radius:50%;border:none;cursor:pointer;padding:0}
 .sb-sync{padding:10px 16px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px}
 .sb-sync-label{font-size:11px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sb-sync-btn{background:transparent;border:none;color:var(--text-muted);font-size:10px;cursor:pointer;padding:3px 6px;border-radius:4px}
@@ -239,6 +252,7 @@ textarea.input{resize:vertical;min-height:64px}
       <div class="sb-sub">Business OS</div>
       <div class="sb-date" id="sbDate"></div>
     </div>
+    <div class="sb-biz" id="sbBiz"></div>
     <div class="sb-nav" id="sbNav"></div>
     <div class="sb-sync">
       <span class="sync-dot off" id="syncDot"></span>
@@ -305,7 +319,7 @@ const NAV_STATIC = [
 const NAV = [...NAV_STATIC, ...DEPTS];
 
 // Single-collection localStorage keys (not per-department)
-const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews' };
+const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews', businesses:'lo_businesses' };
 
 let activeTab = 'home';
 
@@ -320,8 +334,58 @@ function save(k, v){
   updateAllPills();
 }
 
+// ---------------------------------------------------------------
+// Multi-business — collections scoped to a businessId are read via
+// loadScoped(). Habits and the Directory (Phase 7) stay global.
+// ---------------------------------------------------------------
+const BIZ_COLORS = ['#6366f1','#f472b6','#60a5fa','#34d399','#f59e0b','#22d3ee','#4ade80','#fb923c'];
+const SCOPED_KEYS = [...DEPTS.map(d => LOK[d.key]), NK.notes, NK.goals, NK.meetings, NK.growth, NK.reviews];
+const SCHEMA_KEY = '_lo_schemaVersion';
+const ACTIVE_BIZ_KEY = '_lo_activeBusiness';
+
+function getSchemaVersion(){ return parseInt(localStorage.getItem(SCHEMA_KEY) || '0', 10); }
+function setSchemaVersion(v){ localStorage.setItem(SCHEMA_KEY, String(v)); }
+
+function migrateToMultiBusiness(){
+  if(getSchemaVersion() >= 1) return;
+  let businesses = load(NK.businesses);
+  if(!businesses.length){
+    const biz = {id: uid(), name:'StreamLean', color: BIZ_COLORS[0], createdAt: new Date().toISOString()};
+    businesses = [biz];
+    SCOPED_KEYS.forEach(k => {
+      const arr = load(k);
+      let changed = false;
+      arr.forEach(item => { if(!item.businessId){ item.businessId = biz.id; changed = true; } });
+      if(changed) save(k, arr);
+    });
+    save(NK.businesses, businesses);
+  }
+  setSchemaVersion(1);
+}
+
+let activeBusinessId = localStorage.getItem(ACTIVE_BIZ_KEY) || null;
+function getBusinesses(){ return load(NK.businesses); }
+function activeBusiness(){
+  const list = getBusinesses();
+  return list.find(b => b.id === activeBusinessId) || list[0] || null;
+}
+function setActiveBusiness(id){
+  activeBusinessId = id;
+  localStorage.setItem(ACTIVE_BIZ_KEY, id);
+  closeBizDropdown();
+  renderBizSwitcher();
+  rerenderScopedViews();
+}
+function loadScoped(k){
+  const biz = activeBusiness();
+  return load(k).filter(x => x.businessId === (biz && biz.id));
+}
+
 function allDeptTasks(){
   return DEPTS.flatMap(d => load(LOK[d.key]).map(t => ({...t, _dept: d.key})));
+}
+function allDeptTasksScoped(){
+  return DEPTS.flatMap(d => loadScoped(LOK[d.key]).map(t => ({...t, _dept: d.key})));
 }
 
 // ---------------------------------------------------------------
@@ -353,7 +417,7 @@ function renderMatrix(dept){
   if(!el) return;
   const due = t => t.due || '9999-99-99';
   const byDue = (a,b) => due(a) < due(b) ? -1 : due(a) > due(b) ? 1 : 0;
-  const all = load(LOK[dept]).filter(t => !t.done);
+  const all = loadScoped(LOK[dept]).filter(t => !t.done);
 
   const assigned = {q1:[], q2:[], q3:[], q4:[]};
   const unsorted = [];
@@ -391,19 +455,19 @@ function renderMatrix(dept){
 function updatePill(dept){
   const el = $('pill-' + dept);
   if(!el) return;
-  el.textContent = load(LOK[dept]).filter(t => !t.done).length;
+  el.textContent = loadScoped(LOK[dept]).filter(t => !t.done).length;
 }
 
 function updateAllPills(){
   DEPTS.forEach(d => updatePill(d.key));
   const setPill = (key, n) => { const el = $('pill-'+key); if(el) el.textContent = n; };
-  setPill('notes', load(NK.notes).filter(n => n.status === null || n.status === undefined).length);
-  setPill('goals', load(NK.goals).length);
+  setPill('notes', loadScoped(NK.notes).filter(n => n.status === null || n.status === undefined).length);
+  setPill('goals', loadScoped(NK.goals).length);
   const habits = load(NK.habits);
   const log = load(NK.habitLog);
   const doneToday = habits.filter(h => log.some(e => e.habitId === h.id && e.date === today())).length;
   setPill('habits', habits.length - doneToday);
-  setPill('meetings', load(NK.meetings).filter(m => m.date === today() && !m.done).length);
+  setPill('meetings', loadScoped(NK.meetings).filter(m => m.date === today() && !m.done).length);
 }
 
 function toggleTask(dept, id){
@@ -516,7 +580,7 @@ function saveTaskForm(){
     const i = tasks.findIndex(t => t.id === id);
     if(i >= 0) tasks[i] = {...tasks[i], ...fields};
   } else {
-    tasks.unshift({id: uid(), ...fields, done:false, created: today()});
+    tasks.unshift({id: uid(), businessId: activeBusinessId, ...fields, done:false, created: today()});
   }
   save(LOK[dept], tasks);
   closeModal();
@@ -574,7 +638,7 @@ function homeTabHtml(){
 }
 
 function renderHome(){
-  const tasks = allDeptTasks().filter(t => !t.done);
+  const tasks = allDeptTasksScoped().filter(t => !t.done);
   const score = t => {
     let s = 0;
     if(t.due && t.due < today()) s += 80;
@@ -609,7 +673,7 @@ function renderHome(){
       <div style="flex:1"><div class="matrix-task-title">${esc(t.title)}</div><span class="tag">${deptOf(t._dept).icon} ${deptOf(t._dept).label}</span></div>
     </div>`).join('') : `<div class="empty-state">Nothing due today</div>`;
 
-  const meetsToday = load(NK.meetings).filter(m => m.date === today()).sort((a,b) => (a.time||'') < (b.time||'') ? -1 : 1);
+  const meetsToday = loadScoped(NK.meetings).filter(m => m.date === today()).sort((a,b) => (a.time||'') < (b.time||'') ? -1 : 1);
   $('home-meetings').innerHTML = meetsToday.length ? meetsToday.map(m => `
     <div class="list-row">
       <div style="flex:1">
@@ -618,7 +682,7 @@ function renderHome(){
       </div>
     </div>`).join('') : `<div class="empty-state">No meetings today</div>`;
 
-  const goals = load(NK.goals).slice(0,5);
+  const goals = loadScoped(NK.goals).slice(0,5);
   $('home-goals').innerHTML = goals.length ? goals.map(g => `
     <div class="list-row">
       <div style="flex:1">
@@ -627,7 +691,7 @@ function renderHome(){
       </div>
     </div>`).join('') : `<div class="empty-state">No goals yet</div>`;
 
-  const notes = load(NK.notes).slice(0,5);
+  const notes = loadScoped(NK.notes).slice(0,5);
   $('home-notes').innerHTML = notes.length ? notes.map(n => `
     <div class="list-row">
       <div style="flex:1"><div class="matrix-task-title">${esc(n.text.slice(0,80))}</div><span class="tag">${esc(n.category||'')}</span></div>
@@ -721,7 +785,7 @@ function saveNote(){
   const text = $('note-input').value.trim();
   if(!text) return;
   const notes = load(NK.notes);
-  notes.unshift({id:uid(), text, category:_noteCat, dept:_noteDept, source:$('note-source').value.trim(), status:null, created:today(), ts:Date.now()});
+  notes.unshift({id:uid(), businessId: activeBusinessId, text, category:_noteCat, dept:_noteDept, source:$('note-source').value.trim(), status:null, created:today(), ts:Date.now()});
   save(NK.notes, notes);
   $('note-input').value = ''; $('note-source').value = '';
   renderNotes();
@@ -766,10 +830,10 @@ function noteSourceTag(n){
 
 function renderNotes(){
   renderNoteChips();
-  const cats = [...new Set(load(NK.notes).map(n => n.category).filter(Boolean))];
+  const cats = [...new Set(loadScoped(NK.notes).map(n => n.category).filter(Boolean))];
   $('note-filter-chips').innerHTML = `<button type="button" class="chip ${!_noteFilterCat?'on':''}" onclick="_noteFilterCat=null;renderNotes()">All</button>` +
     cats.map(c => `<button type="button" class="chip ${_noteFilterCat===c?'on':''}" onclick="_noteFilterCat='${c}';renderNotes()">${c}</button>`).join('');
-  let notes = load(NK.notes).sort((a,b) => b.ts - a.ts);
+  let notes = loadScoped(NK.notes).sort((a,b) => b.ts - a.ts);
   if(_noteFilterCat) notes = notes.filter(n => n.category === _noteFilterCat);
   const st = v => NOTE_STATUSES.find(s => s.v === (v ?? null)) || NOTE_STATUSES[0];
   $('notes-feed').innerHTML = notes.length ? notes.map(n => `
@@ -882,7 +946,7 @@ function goalDaysInfo(deadline){
 }
 
 function renderGoals(){
-  const goals = load(NK.goals).slice().sort((a,b) => (a.deadline||'9999') < (b.deadline||'9999') ? -1 : 1);
+  const goals = loadScoped(NK.goals).slice().sort((a,b) => (a.deadline||'9999') < (b.deadline||'9999') ? -1 : 1);
   $('goals-list').innerHTML = goals.length ? goals.map(g => {
     const di = goalDaysInfo(g.deadline);
     const color = safeColor(g.color) || 'var(--t-goals)';
@@ -985,7 +1049,7 @@ function saveGoalForm(){
     const i = goals.findIndex(g => g.id === _editingGoal);
     if(i >= 0) goals[i] = {...goals[i], ...fields};
   } else {
-    goals.unshift({id: uid(), ...fields});
+    goals.unshift({id: uid(), businessId: activeBusinessId, ...fields});
   }
   save(NK.goals, goals);
   closeModal();
@@ -1277,7 +1341,7 @@ function saveMeetingForm(){
     const i = meetings.findIndex(m => m.id === _editingMeeting);
     if(i >= 0) meetings[i] = {...meetings[i], ...fields};
   } else {
-    meetings.unshift({id: uid(), ...fields, done:false, outcome:null, outcomeNotes:''});
+    meetings.unshift({id: uid(), businessId: activeBusinessId, ...fields, done:false, outcome:null, outcomeNotes:''});
   }
   save(NK.meetings, meetings);
   closeModal();
@@ -1324,7 +1388,7 @@ function saveOutcomeForm(){
 }
 
 function renderMeetings(){
-  const meetings = load(NK.meetings).slice().sort((a,b) => (a.date+(a.time||'')) < (b.date+(b.time||'')) ? -1 : 1);
+  const meetings = loadScoped(NK.meetings).slice().sort((a,b) => (a.date+(a.time||'')) < (b.date+(b.time||'')) ? -1 : 1);
   const upcoming = meetings.filter(m => m.date >= today() && !m.done);
   const past = meetings.filter(m => m.date < today() || m.done);
   const row = m => {
@@ -1451,7 +1515,7 @@ function saveGrowthForm(){
     const i = items.findIndex(x => x.id === _editingGrowth);
     if(i >= 0) items[i] = {...items[i], ...fields};
   } else {
-    items.unshift({id: uid(), ...fields});
+    items.unshift({id: uid(), businessId: activeBusinessId, ...fields});
   }
   save(NK.growth, items);
   closeModal();
@@ -1465,7 +1529,7 @@ function deleteGrowth(id){
 
 function renderGrowth(){
   $('growth-subtabs').innerHTML = GROWTH_SUBTABS.map(s => `<button type="button" class="sub-tab-btn ${s.key===_growthSubtab?'on':''}" onclick="switchGrowthSubtab('${s.key}')">${s.icon} ${s.label}</button>`).join('');
-  const items = load(NK.growth).filter(x => x.category === _growthSubtab).sort((a,b) => (b.date||'') < (a.date||'') ? -1 : 1);
+  const items = loadScoped(NK.growth).filter(x => x.category === _growthSubtab).sort((a,b) => (b.date||'') < (a.date||'') ? -1 : 1);
   const typeIcon = t => (GROWTH_TYPES.find(x => x.v === t) || {}).icon || '📌';
   $('growth-list').innerHTML = items.length ? `<div class="card">${items.map(g => `
     <div class="list-row">
@@ -1543,9 +1607,9 @@ function saveReview(){
     ts: Date.now(),
   };
   const reviews = load(NK.reviews);
-  const i = reviews.findIndex(r => r.week === week);
+  const i = reviews.findIndex(r => r.week === week && r.businessId === activeBusinessId);
   if(i >= 0) reviews[i] = {...reviews[i], ...fields};
-  else reviews.unshift({id: uid(), ...fields});
+  else reviews.unshift({id: uid(), businessId: activeBusinessId, ...fields});
   save(NK.reviews, reviews);
   ['rv-overall','rv-energy','rv-focus'].forEach(id => { $(id).value = 7; $(id+'-val').textContent = 7; });
   ['rv-wins','rv-losses','rv-priority','rv-vision'].forEach(id => $(id).value = '');
@@ -1564,11 +1628,11 @@ function loadReview(id){
 }
 
 function renderReview(){
-  const tasks = allDeptTasks();
+  const tasks = allDeptTasksScoped();
   const weekAgo = localDateStr(new Date(Date.now() - 7*86400000));
   const doneThisWeek = tasks.filter(t => t.done && t.due && t.due >= weekAgo).length;
   const openCount = tasks.filter(t => !t.done).length;
-  const goals = load(NK.goals);
+  const goals = loadScoped(NK.goals);
   const goalAvg = goals.length ? Math.round(goals.reduce((s,g) => s + (g.progress||0), 0) / goals.length) : 0;
   const habits = load(NK.habits);
   const habitLog = load(NK.habitLog);
@@ -1583,7 +1647,7 @@ function renderReview(){
     <div class="stat-tile"><div class="stat-num">${goalAvg}%</div><div class="stat-label">Goal Progress</div></div>
     <div class="stat-tile"><div class="stat-num">${openCount}</div><div class="stat-label">Open Tasks</div></div>`;
 
-  const reviews = load(NK.reviews).sort((a,b) => b.week < a.week ? -1 : 1);
+  const reviews = loadScoped(NK.reviews).sort((a,b) => b.week < a.week ? -1 : 1);
   $('review-history').innerHTML = reviews.length ? reviews.map(r => `
     <div class="list-row" style="cursor:pointer" onclick="loadReview('${r.id}')">
       <div style="flex:1">
@@ -1592,6 +1656,74 @@ function renderReview(){
         <div class="matrix-task-notes">${esc((r.priority||'').slice(0,80))}</div>
       </div>
     </div>`).join('') : `<div class="empty-state">No reviews yet</div>`;
+}
+
+// ---------------------------------------------------------------
+// Business switcher (top of sidebar)
+// ---------------------------------------------------------------
+let _bizDropdownOpen = false;
+function toggleBizDropdown(){ _bizDropdownOpen = !_bizDropdownOpen; renderBizSwitcher(); }
+function closeBizDropdown(){ _bizDropdownOpen = false; }
+
+function renderBizSwitcher(){
+  const el = $('sbBiz');
+  if(!el) return;
+  const biz = activeBusiness();
+  const list = getBusinesses();
+  el.innerHTML = `
+    <button type="button" class="biz-btn" onclick="toggleBizDropdown()">
+      <span class="biz-dot" style="background:${biz?esc(biz.color):'var(--text-muted)'}"></span>
+      <span class="biz-name">${biz?esc(biz.name):'No business'}</span>
+      <span class="biz-caret">▾</span>
+    </button>
+    <div class="biz-dropdown ${_bizDropdownOpen?'open':''}">
+      ${list.map(b => `
+        <div class="biz-opt ${b.id===activeBusinessId?'active':''}" onclick="setActiveBusiness('${b.id}')">
+          <span class="biz-dot" style="background:${esc(b.color)}"></span>${esc(b.name)}
+        </div>`).join('')}
+      <div class="biz-opt biz-opt-new" onclick="openNewBusinessModal()">+ New business</div>
+    </div>`;
+}
+
+document.addEventListener('click', e => {
+  if(_bizDropdownOpen && !e.target.closest('#sbBiz')){ closeBizDropdown(); renderBizSwitcher(); }
+}, true);
+
+function newBusinessModalHtml(){
+  return `
+    <div class="field"><label>Business Name *</label><input class="input" id="lo-biz-name" placeholder="e.g. My New Venture"></div>
+    <div class="field">
+      <label>Color</label>
+      <div class="chip-row">${BIZ_COLORS.map(c => `<button type="button" onclick="document.getElementById('lo-biz-color').value='${c}';document.querySelectorAll('.biz-color-dot').forEach(b=>b.style.outline='none');this.style.outline='2px solid #fff'" class="biz-color-dot" style="background:${c}"></button>`).join('')}</div>
+      <input type="hidden" id="lo-biz-color" value="${BIZ_COLORS[0]}">
+    </div>`;
+}
+function openNewBusinessModal(){
+  closeBizDropdown();
+  renderBizSwitcher();
+  $('modalTitle').textContent = 'New Business';
+  $('modalBody').innerHTML = newBusinessModalHtml();
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveBusinessForm;
+  document.documentElement.style.setProperty('--tab-color', BIZ_COLORS[0]);
+  $('modalOverlay').classList.add('open');
+  setTimeout(() => { const f=$('lo-biz-name'); if(f) f.focus(); }, 100);
+}
+function saveBusinessForm(){
+  const name = $('lo-biz-name').value.trim();
+  if(!name){ alert('Business name required'); return; }
+  const businesses = getBusinesses();
+  const biz = {id: uid(), name, color: $('lo-biz-color').value || BIZ_COLORS[0], createdAt: new Date().toISOString()};
+  businesses.push(biz);
+  save(NK.businesses, businesses);
+  closeModal();
+  setActiveBusiness(biz.id);
+}
+
+function rerenderScopedViews(){
+  DEPTS.forEach(d => renderMatrix(d.key));
+  renderHome(); renderNotes(); renderGoals(); renderMeetings(); renderGrowth(); renderReview();
+  updateAllPills();
 }
 
 // ---------------------------------------------------------------
@@ -1640,6 +1772,7 @@ function buildShell(){
 
   $('sbDate').textContent = new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
   document.documentElement.style.setProperty('--tab-color', NAV.find(t => t.key === activeTab).color);
+  renderBizSwitcher();
 }
 
 function switchTab(id){
@@ -1657,10 +1790,14 @@ function switchTab(id){
 }
 
 function init(){
+  migrateToMultiBusiness();
+  if(!activeBusinessId){
+    const biz = activeBusiness();
+    if(biz){ activeBusinessId = biz.id; localStorage.setItem(ACTIVE_BIZ_KEY, biz.id); }
+  }
   buildShell();
-  DEPTS.forEach(d => renderMatrix(d.key));
-  renderHome(); renderNotes(); renderGoals(); renderHabits(); renderMeetings(); renderGrowth(); renderReview();
-  updateAllPills();
+  rerenderScopedViews();
+  renderHabits();
 }
 
 // ---------------------------------------------------------------
@@ -1689,7 +1826,7 @@ const _SB_KEY = 'sb_publishable_qgfJXOAlB33B2mDNqeWAUQ_nFpBv-bN';
 const _SB_TABLE = 'leanoffice_sync';
 const _SYNC_TS_KEY = '_lo_last_sync';
 const _PENDING_KEY = '_lo_pending';
-const SYNC_COLS = [...DEPTS.map(d => d.key), 'notes', 'goals', 'habits', 'habitLog', 'meetings', 'growth', 'reviews'];
+const SYNC_COLS = [...DEPTS.map(d => d.key), 'notes', 'goals', 'habits', 'habitLog', 'meetings', 'growth', 'reviews', 'businesses'];
 let _sb = null, _sbUser = null, _bgPollTimer = null;
 
 function initSupabase(){
@@ -1800,9 +1937,9 @@ function startBgPoll(){
     if(!_sb || !_sbUser) return;
     try{
       await _sbDoPull();
-      DEPTS.forEach(d => renderMatrix(d.key));
-      renderHome(); renderNotes(); renderGoals(); renderHabits(); renderMeetings(); renderGrowth(); renderReview();
-      updateAllPills();
+      rerenderScopedViews();
+      renderHabits();
+      renderBizSwitcher();
     }catch(e){ console.warn('LeanOffice background poll error', e); }
   }, 60000);
 }
