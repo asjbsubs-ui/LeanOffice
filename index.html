@@ -148,11 +148,34 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .chip{padding:6px 11px;border-radius:99px;border:1px solid var(--border-md);background:transparent;color:var(--text-muted);cursor:pointer;font-size:11.5px;font-weight:600;transition:all .15s}
 .chip.on{border-color:var(--tab-color,var(--accent));background:color-mix(in srgb,var(--tab-color,var(--accent)) 15%,transparent);color:var(--tab-color,var(--accent))}
 .status-pill{padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700;cursor:pointer;border:none;flex-shrink:0}
-.triage-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
 .triage-picker-wrap{position:relative}
 .triage-dropdown{position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg-alt);border:1px solid var(--border-md);border-radius:var(--r-md);box-shadow:0 16px 40px rgba(0,0,0,.5);z-index:50;min-width:150px;overflow:hidden}
 .triage-opt{padding:8px 12px;font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap}
 .triage-opt:hover{background:var(--bg-hover);color:var(--text-primary)}
+
+/* ---- Capture note cards (matches LeanFlow's note-card / exits-row) ---- */
+.note-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px;transition:border-color .15s}
+.note-card:hover{border-color:var(--border-md)}
+.note-text{font-size:13.5px;color:var(--text-primary);line-height:1.65;margin-bottom:10px;white-space:pre-wrap}
+.note-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.note-cat{font-size:10px;padding:2px 9px;border-radius:99px;background:rgba(167,139,250,.12);color:#a78bfa;font-weight:600;flex-shrink:0}
+.note-dept{font-size:10px;padding:2px 9px;border-radius:99px;background:rgba(255,255,255,.06);color:var(--text-secondary);font-weight:600;flex-shrink:0}
+.note-date{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}
+.note-source{font-size:11px;color:#60a5fa;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.note-source:hover{text-decoration:underline}
+.exits-row{display:grid;gap:6px;margin-top:10px}
+.exits-row button{font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;padding:7px 0;border-radius:var(--r-xs);border:1px solid var(--border-md);background:transparent;color:var(--text-muted);transition:all .12s;font-family:'Outfit',sans-serif}
+.exits-row button.exit-t:hover{background:rgba(129,140,248,.14);color:var(--t-tasks);border-color:transparent}
+.exits-row button.exit-e:hover{background:rgba(34,211,238,.14);color:var(--t-growth);border-color:transparent}
+.exits-row button.exit-r:hover{background:rgba(251,146,60,.14);color:var(--t-library);border-color:transparent}
+.exits-row button.exit-b:hover{background:rgba(251,191,36,.14);color:var(--yellow);border-color:transparent}
+.exits-row button.exit-x:hover{background:rgba(248,113,113,.14);color:var(--red);border-color:transparent}
+.exit-panel{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.exit-panel.open{display:block}
+.exit-panel-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.exit-confirm{font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:8px 16px;border-radius:var(--r-xs);border:none;color:#000}
+.exit-confirm.r{background:var(--t-library)}
+@media(max-width:480px){.exits-row{grid-template-columns:repeat(2,1fr)!important}}
 .sub-tab-bar{display:flex;gap:2px;background:rgba(255,255,255,.05);border:1px solid var(--border-md);border-radius:var(--r-sm);padding:2px;margin-bottom:16px;width:fit-content}
 .sub-tab-btn{padding:7px 16px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);border:none;background:transparent}
 .sub-tab-btn.on{background:color-mix(in srgb,var(--tab-color,var(--accent)) 15%,transparent);color:var(--tab-color,var(--accent))}
@@ -645,10 +668,35 @@ function homeTabHtml(){
         </div>
       </div>
       <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><div class="card-title">Today</div></div>
+        <div class="card-header"><div class="card-title">Today — All Businesses</div></div>
         <div id="home-today"></div>
       </div>
       <div id="home-quick-add"></div>
+      <div id="home-priorities"></div>
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Today's Tasks</div></div>
+          <div class="card-body tight" id="home-tasks"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Today's Habits</div></div>
+          <div class="card-body tight" id="home-habits"></div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Today's Meetings</div></div>
+          <div class="card-body tight" id="home-meetings"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Active Goals</div></div>
+          <div class="card-body tight" id="home-goals"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><div class="card-title">Recent Capture</div></div>
+        <div class="card-body tight" id="home-notes"></div>
+      </div>
       <div id="home-weekend"></div>
     </div>`;
 }
@@ -714,6 +762,7 @@ function homeWeekendCardHtml(){
 }
 
 function renderHome(){
+  // Unified cross-business Today list + quick-add + weekend card
   const businesses = getBusinesses();
   const bizById = Object.fromEntries(businesses.map(b => [b.id, b]));
   const due = allDeptTasks()
@@ -723,13 +772,91 @@ function renderHome(){
   $('home-today').innerHTML = due.length ? due.map(homeTodayRow).join('') : `<div class="empty-state">Nothing due today or overdue 🎉</div>`;
   $('home-quick-add').innerHTML = homeQuickAddHtml();
   $('home-weekend').innerHTML = homeWeekendCardHtml();
+
+  // Original active-business-scoped dashboard cards
+  const tasks = allDeptTasksScoped().filter(t => !t.done);
+  const score = t => {
+    let s = 0;
+    if(t.due && t.due < today()) s += 80;
+    else if(t.due === today()) s += 40;
+    if(t.urgency === 'urgent') s += 20;
+    if(t.importance === 'important') s += 15;
+    return s;
+  };
+  const top = tasks.map(t => ({...t, _score: score(t)})).filter(t => t._score > 0).sort((a,b) => b._score - a._score).slice(0,3);
+  const prEl = $('home-priorities');
+  if(prEl){
+    prEl.innerHTML = top.length ? `
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><div class="card-title">Top Priorities</div></div>
+        <div class="card-body tight">
+          ${top.map((t,i) => `
+            <div class="priority-card" onclick="toggleTask('${t._dept}','${t.id}')">
+              <div class="priority-num">0${i+1}</div>
+              <div style="flex:1">
+                <div class="priority-title">${esc(t.title)}</div>
+                <div class="priority-sub">${deptOf(t._dept).icon} ${deptOf(t._dept).label}${t.due?' · 📅 '+fmtDateShort(t.due):''}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+  }
+
+  const dueToday = tasks.filter(t => t.due === today()).slice(0,6);
+  $('home-tasks').innerHTML = dueToday.length ? dueToday.map(t => `
+    <div class="list-row">
+      <div class="check-box" onclick="toggleTask('${t._dept}','${t.id}')">${t.done?'✓':''}</div>
+      <div style="flex:1"><div class="matrix-task-title">${esc(t.title)}</div><span class="tag">${deptOf(t._dept).icon} ${deptOf(t._dept).label}</span></div>
+    </div>`).join('') : `<div class="empty-state">Nothing due today</div>`;
+
+  const meetsToday = loadScoped(NK.meetings).filter(m => m.date === today()).sort((a,b) => (a.time||'') < (b.time||'') ? -1 : 1);
+  $('home-meetings').innerHTML = meetsToday.length ? meetsToday.map(m => `
+    <div class="list-row">
+      <div style="flex:1">
+        <div class="matrix-task-title">${esc(m.title)}</div>
+        <div class="matrix-task-notes">${m.time?fmtTime(m.time):'All day'}${m.dept?' · '+deptOf(m.dept).icon+' '+deptOf(m.dept).label:''}</div>
+      </div>
+    </div>`).join('') : `<div class="empty-state">No meetings today</div>`;
+
+  const goals = loadScoped(NK.goals).slice(0,5);
+  $('home-goals').innerHTML = goals.length ? goals.map(g => `
+    <div class="list-row">
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="matrix-task-title">${esc(g.title)}</span><span style="font-size:11px;color:${safeColor(g.color)||'var(--accent)'}">${g.progress||0}%</span></div>
+        <div class="progress-track"><div class="progress-fill" style="width:${g.progress||0}%;background:${safeColor(g.color)||'var(--accent)'}"></div></div>
+      </div>
+    </div>`).join('') : `<div class="empty-state">No goals yet</div>`;
+
+  const notes = loadScoped(NK.notes).slice(0,5);
+  $('home-notes').innerHTML = notes.length ? notes.map(n => `
+    <div class="list-row">
+      <div style="flex:1"><div class="matrix-task-title">${esc(n.text.slice(0,80))}</div><span class="tag">${esc(n.category||'')}</span></div>
+    </div>`).join('') : `<div class="empty-state">Nothing captured yet</div>`;
+
+  renderHomeHabits();
+}
+
+function renderHomeHabits(){
+  const habits = load(NK.habits);
+  const log = load(NK.habitLog);
+  const el = $('home-habits');
+  if(!el) return;
+  if(!habits.length){ el.innerHTML = `<div class="empty-state">No habits set up</div>`; return; }
+  el.innerHTML = habits.slice(0,6).map(h => {
+    const done = log.some(e => e.habitId === h.id && e.date === today());
+    return `
+    <div class="list-row" style="cursor:pointer" onclick="toggleHabitDay('${h.id}','${today()}')">
+      <div class="check-box" style="${done?'background:var(--t-habits);border-color:var(--t-habits)':''}">${done?'✓':''}</div>
+      <div style="flex:1"><span class="matrix-task-title">${h.icon||'⭐'} ${esc(h.name)}</span></div>
+    </div>`;
+  }).join('');
 }
 
 // ---------------------------------------------------------------
 // Capture tab (notes)
 // ---------------------------------------------------------------
 const NOTE_CATS = ['💡 Business Idea','📣 Marketing Idea','💼 Sales Idea','⚙️ Process Improvement','💰 Finance Note','🔗 Resource','🧠 Thought','⚡ Quick Thought'];
-let _noteCat = NOTE_CATS[0], _noteDept = null, _noteFilterCat = null, _notePicker = null;
+let _noteCat = NOTE_CATS[0], _noteDept = null, _noteFilterCat = null;
 
 function notesTabHtml(){
   return `
@@ -754,9 +881,9 @@ function notesTabHtml(){
         </div>
       </div>
       <div class="chip-row" id="note-filter-chips" style="margin-bottom:14px"></div>
-      <div class="card" style="margin-bottom:16px"><div id="notes-feed"></div></div>
+      <div id="notes-feed" style="margin-bottom:20px"></div>
       <div class="card-header" style="padding-left:0;border-bottom:none"><div class="card-title">Backlog</div></div>
-      <div class="card"><div id="notes-backlog"></div></div>
+      <div id="notes-backlog"></div>
     </div>`;
 }
 
@@ -806,7 +933,7 @@ function noteSourceTag(n){
   if(!n.source) return '';
   let host = 'Link';
   try{ host = new URL(n.source).hostname.replace('www.',''); }catch{}
-  return `<a href="${esc(n.source)}" target="_blank" rel="noopener" class="tag" style="text-decoration:none">🔗 ${esc(host)}</a>`;
+  return `<a href="${esc(n.source)}" target="_blank" rel="noopener" class="note-source">🔗 ${esc(host)}</a>`;
 }
 
 function noteUrl(n){
@@ -821,13 +948,15 @@ function noteUrl(n){
 // the browsing UI for Growth's To Learn queue (Phase 5) and Library
 // (Phase 6) lands later — the data shape is final now.
 // ---------------------------------------------------------------
-function toggleNotePicker(id, type){
-  _notePicker = (_notePicker && _notePicker.id === id && _notePicker.type === type) ? null : {id, type};
-  renderNotes();
+function toggleExitPanel(id, type){
+  const other = type === 'task' ? 'reference' : 'task';
+  const otherEl = $(`exitpanel-${id}-${other}`);
+  if(otherEl) otherEl.classList.remove('open');
+  const el = $(`exitpanel-${id}-${type}`);
+  if(el) el.classList.toggle('open');
 }
 
 function afterTriage(msg){
-  _notePicker = null;
   renderNotes();
   updateAllPills();
   if(activeTab === 'home') renderHome();
@@ -894,46 +1023,36 @@ function triageReject(noteId){
   afterTriage();
 }
 
-function noteTriageActions(n){
+function noteCard(n){
   const url = noteUrl(n);
-  const taskOpen = _notePicker && _notePicker.id === n.id && _notePicker.type === 'task';
-  const refOpen = _notePicker && _notePicker.id === n.id && _notePicker.type === 'reference';
+  const exitCount = [true, !!url, true, n.status !== 'backlog', true].filter(Boolean).length;
   return `
-    <div class="triage-row">
-      <div class="triage-picker-wrap">
-        <button type="button" class="chip" onclick="toggleNotePicker('${n.id}','task')">→ Task</button>
-        ${taskOpen ? `<div class="triage-dropdown">${DEPTS.map(d => `<div class="triage-opt" onclick="triageToTask('${n.id}','${d.key}')">${d.icon} ${d.label}</div>`).join('')}</div>` : ''}
-      </div>
-      ${url ? `<button type="button" class="chip" onclick="triageExtract('${n.id}')">⇢ Extract</button>` : ''}
-      <div class="triage-picker-wrap">
-        <button type="button" class="chip" onclick="toggleNotePicker('${n.id}','reference')">📚 Reference</button>
-        ${refOpen ? `<div class="triage-dropdown">${LIBRARY_CATEGORIES.map(c => `<div class="triage-opt" onclick="triageToLibrary('${n.id}','${c}')">${c}</div>`).join('')}</div>` : ''}
-      </div>
-      ${n.status !== 'backlog' ? `<button type="button" class="chip" onclick="triageBacklog('${n.id}')">🗂 Backlog</button>` : ''}
-      <button type="button" class="chip" onclick="triageReject('${n.id}')">✕ Reject</button>
-    </div>`;
-}
-
-document.addEventListener('click', e => {
-  if(_notePicker && !e.target.closest('.triage-picker-wrap')){ _notePicker = null; renderNotes(); }
-}, true);
-
-function noteRow(n){
-  return `
-    <div class="list-row" style="flex-direction:column;align-items:stretch">
-      <div style="display:flex;gap:10px">
-        <div style="flex:1;min-width:0">
-          <div class="matrix-task-title">${esc(n.text)}</div>
-          <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            <span class="tag">${esc(n.category||'')}</span>
-            ${n.dept?`<span class="tag">${deptOf(n.dept).icon} ${deptOf(n.dept).label}</span>`:''}
-            ${noteSourceTag(n)}
-          </div>
-        </div>
+    <div class="note-card" id="notecard-${n.id}">
+      <div class="note-text">${esc(n.text)}</div>
+      <div class="note-footer">
+        ${n.category?`<span class="note-cat">${esc(n.category)}</span>`:''}
+        ${n.dept?`<span class="note-dept">${deptOf(n.dept).icon} ${deptOf(n.dept).label}</span>`:''}
+        ${noteSourceTag(n)}
+        <span class="note-date" style="margin-left:auto">${fmtDateShort(n.created)}</span>
         <button class="delete-btn" onclick="editNote('${n.id}')" title="Edit" style="font-size:13px">✏️</button>
         <button class="delete-btn" onclick="deleteNote('${n.id}')" title="Delete">✕</button>
       </div>
-      ${noteTriageActions(n)}
+      <div class="exits-row" style="grid-template-columns:repeat(${exitCount},1fr)">
+        <button type="button" class="exit-t" onclick="toggleExitPanel('${n.id}','task')">Task</button>
+        ${url?`<button type="button" class="exit-e" onclick="triageExtract('${n.id}')">Extract</button>`:''}
+        <button type="button" class="exit-r" onclick="toggleExitPanel('${n.id}','reference')">Reference</button>
+        ${n.status!=='backlog'?`<button type="button" class="exit-b" onclick="triageBacklog('${n.id}')">Backlog</button>`:''}
+        <button type="button" class="exit-x" onclick="triageReject('${n.id}')">Reject</button>
+      </div>
+      <div class="exit-panel" id="exitpanel-${n.id}-task">
+        <div class="exit-panel-row">${DEPTS.map(d => `<button type="button" class="chip" onclick="triageToTask('${n.id}','${d.key}')">${d.icon} ${d.label}</button>`).join('')}</div>
+      </div>
+      <div class="exit-panel" id="exitpanel-${n.id}-reference">
+        <div class="exit-panel-row">
+          <select class="select" id="lib-cat-${n.id}" style="flex:1">${LIBRARY_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}</select>
+          <button type="button" class="exit-confirm r" onclick="triageToLibrary('${n.id}', document.getElementById('lib-cat-${n.id}').value)">File to Library</button>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -946,10 +1065,10 @@ function renderNotes(){
 
   let open = scoped.filter(n => n.status === 'open').sort((a,b) => b.ts - a.ts);
   if(_noteFilterCat) open = open.filter(n => n.category === _noteFilterCat);
-  $('notes-feed').innerHTML = open.length ? open.map(noteRow).join('') : `<div class="empty-state">Nothing captured yet — jot something above.</div>`;
+  $('notes-feed').innerHTML = open.length ? open.map(noteCard).join('') : `<div class="empty-state">Nothing captured yet — jot something above.</div>`;
 
   const backlog = scoped.filter(n => n.status === 'backlog').sort((a,b) => b.ts - a.ts);
-  $('notes-backlog').innerHTML = backlog.length ? backlog.map(noteRow).join('') : `<div class="empty-state">Backlog is empty</div>`;
+  $('notes-backlog').innerHTML = backlog.length ? backlog.map(noteCard).join('') : `<div class="empty-state">Backlog is empty</div>`;
 }
 
 let _editingNote = null;
