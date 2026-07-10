@@ -22,7 +22,7 @@
   --green:#4ade80;--red:#f87171;--yellow:#fbbf24;--orange:#fb923c;
   --r-xs:5px;--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:24px;
   --nav-w:230px;
-  --t-home:#93c5fd;--t-notes:#fde047;--t-goals:#c084fc;--t-habits:#a3e635;--t-meetings:#2dd4bf;--t-growth:#22d3ee;--t-review:#a78bfa;
+  --t-home:#93c5fd;--t-notes:#fde047;--t-tasks:#818cf8;--t-goals:#c084fc;--t-habits:#a3e635;--t-meetings:#2dd4bf;--t-growth:#22d3ee;--t-review:#a78bfa;
   --t-build:#60a5fa;--t-market:#f472b6;--t-sales:#4ade80;--t-operations:#f59e0b;--t-finance:#34d399;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -315,6 +315,7 @@ function deptOf(key){ return DEPTS.find(d => d.key === key); }
 const NAV_STATIC = [
   {key:'home',     label:'Home',           icon:'🏠', color:'var(--t-home)',     pill:false, group:null},
   {key:'notes',    label:'Capture',        icon:'💡', color:'var(--t-notes)',    pill:true,  group:'workflow'},
+  {key:'tasks',    label:'Tasks',          icon:'✅', color:'var(--t-tasks)',    pill:true,  group:'workflow'},
   {key:'growth',   label:'Growth',         icon:'📈', color:'var(--t-growth)',   pill:true,  group:'workflow'},
   {key:'goals',    label:'Goals',          icon:'🎯', color:'var(--t-goals)',    pill:false, group:'track'},
   {key:'habits',   label:'Habits',         icon:'🔁', color:'var(--t-habits)',   pill:false, group:'track'},
@@ -467,6 +468,7 @@ function renderMatrix(dept){
 function updateAllPills(){
   const setPill = (key, n) => { const el = $('pill-'+key); if(el) el.textContent = n; };
   setPill('notes', loadScoped(NK.notes).filter(n => n.status === null || n.status === undefined).length);
+  setPill('tasks', allDeptTasksScoped().filter(t => !t.done && t.due && t.due <= today()).length);
   setPill('growth', 0); // real "undecided lessons+ideas" count lands with the Growth pipeline restructure
 }
 
@@ -477,6 +479,8 @@ function toggleTask(dept, id){
   t.done = !t.done;
   save(LOK[dept], tasks);
   renderMatrix(dept);
+  if(activeTab === 'tasks') renderTasks();
+  if(activeTab === 'home') renderHome();
 }
 
 function deleteTask(dept, id){
@@ -585,6 +589,7 @@ function saveTaskForm(){
   save(LOK[dept], tasks);
   closeModal();
   renderMatrix(dept);
+  if(activeTab === 'tasks') renderTasks();
   if(activeTab === 'home') renderHome();
 }
 
@@ -914,6 +919,73 @@ function saveNoteForm(){
   closeModal();
   renderNotes();
   if(activeTab === 'home') renderHome();
+}
+
+// ---------------------------------------------------------------
+// Tasks tab — unified "doing" lens across all 5 departments.
+// Departments stay the planning lens (Eisenhower); same underlying
+// data, writes always go back to the source department collection.
+// ---------------------------------------------------------------
+const TASKS_LENSES = [{key:'today', label:'Today'}, {key:'all', label:'All Open'}];
+let _tasksLens = 'today';
+let _tasksGroupCollapsed = {};
+
+function tasksTabHtml(){
+  return `
+    <div id="tab-tasks" class="tab-panel ${activeTab==='tasks'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-tasks)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-tasks)">✅ Tasks</div>
+          <div class="ph-sub">Everything due, across every department — the doing lens.</div>
+        </div>
+      </div>
+      <div class="sub-tab-bar" id="tasks-lenses"></div>
+      <div id="tasks-list"></div>
+    </div>`;
+}
+
+function switchTasksLens(k){ _tasksLens = k; renderTasks(); }
+function toggleTasksGroup(dept){ _tasksGroupCollapsed[dept] = !_tasksGroupCollapsed[dept]; renderTasks(); }
+
+function taskRowTasks(t){
+  const d = deptOf(t._dept);
+  return `
+    <div class="list-row">
+      <div class="check-box" onclick="toggleTask('${t._dept}','${t.id}')">${t.done?'✓':''}</div>
+      <div style="flex:1;min-width:0">
+        <div class="matrix-task-title">${esc(t.title)}</div>
+        <div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span class="tag" style="color:${d.color}">${d.icon} ${d.label}</span>
+          ${t.due?`<span class="matrix-task-notes">📅 ${fmtDateShort(t.due)}</span>`:''}
+        </div>
+      </div>
+      <button class="delete-btn" onclick="editTask('${t._dept}','${t.id}')" title="Edit">✏️</button>
+    </div>`;
+}
+
+function renderTasks(){
+  const lensEl = $('tasks-lenses');
+  if(!lensEl) return;
+  lensEl.innerHTML = TASKS_LENSES.map(l => `<button type="button" class="sub-tab-btn ${l.key===_tasksLens?'on':''}" onclick="switchTasksLens('${l.key}')">${l.label}</button>`).join('');
+  const all = allDeptTasksScoped().filter(t => !t.done);
+  if(_tasksLens === 'today'){
+    const due = all.filter(t => t.due && t.due <= today()).sort((a,b) => a.due < b.due ? -1 : a.due > b.due ? 1 : 0);
+    $('tasks-list').innerHTML = due.length ? `<div class="card">${due.map(taskRowTasks).join('')}</div>` : `<div class="empty-state">Nothing due today or overdue 🎉</div>`;
+  } else {
+    const byDept = DEPTS.map(d => ({d, tasks: all.filter(t => t._dept === d.key).sort((a,b) => (a.due||'9999') < (b.due||'9999') ? -1 : 1)}));
+    $('tasks-list').innerHTML = byDept.map(({d,tasks}) => {
+      const collapsed = !!_tasksGroupCollapsed[d.key];
+      return `
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-header" style="cursor:pointer" onclick="toggleTasksGroup('${d.key}')">
+          <div class="card-title" style="color:${d.color}">${d.icon} ${d.label}</div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${d.color}">${tasks.length} ${collapsed?'▸':'▾'}</span>
+        </div>
+        ${collapsed ? '' : (tasks.length ? tasks.map(taskRowTasks).join('') : `<div class="empty-state">Nothing open</div>`)}
+      </div>`;
+    }).join('');
+  }
 }
 
 // ---------------------------------------------------------------
@@ -1722,7 +1794,7 @@ function saveBusinessForm(){
 
 function rerenderScopedViews(){
   DEPTS.forEach(d => renderMatrix(d.key));
-  renderHome(); renderNotes(); renderGoals(); renderMeetings(); renderGrowth(); renderReview();
+  renderHome(); renderNotes(); renderTasks(); renderGoals(); renderMeetings(); renderGrowth(); renderReview();
   updateAllPills();
 }
 
@@ -1784,7 +1856,7 @@ function deptTabHtml(d){
 }
 
 const RENDER_FNS = {
-  home: renderHome, notes: renderNotes, goals: renderGoals, habits: renderHabits,
+  home: renderHome, notes: renderNotes, tasks: renderTasks, goals: renderGoals, habits: renderHabits,
   meetings: renderMeetings, growth: renderGrowth, review: renderReview,
 };
 
@@ -1792,7 +1864,7 @@ function buildShell(){
   buildNavHtml();
 
   $('mainTabs').innerHTML = [
-    homeTabHtml(), notesTabHtml(), goalsTabHtml(), habitsTabHtml(), meetingsTabHtml(), growthTabHtml(), reviewTabHtml(),
+    homeTabHtml(), notesTabHtml(), tasksTabHtml(), goalsTabHtml(), habitsTabHtml(), meetingsTabHtml(), growthTabHtml(), reviewTabHtml(),
     ...DEPTS.map(deptTabHtml),
   ].join('');
 
