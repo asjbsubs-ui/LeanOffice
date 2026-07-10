@@ -148,6 +148,11 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .chip{padding:6px 11px;border-radius:99px;border:1px solid var(--border-md);background:transparent;color:var(--text-muted);cursor:pointer;font-size:11.5px;font-weight:600;transition:all .15s}
 .chip.on{border-color:var(--tab-color,var(--accent));background:color-mix(in srgb,var(--tab-color,var(--accent)) 15%,transparent);color:var(--tab-color,var(--accent))}
 .status-pill{padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700;cursor:pointer;border:none;flex-shrink:0}
+.triage-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.triage-picker-wrap{position:relative}
+.triage-dropdown{position:absolute;top:100%;left:0;margin-top:4px;background:var(--bg-alt);border:1px solid var(--border-md);border-radius:var(--r-md);box-shadow:0 16px 40px rgba(0,0,0,.5);z-index:50;min-width:150px;overflow:hidden}
+.triage-opt{padding:8px 12px;font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap}
+.triage-opt:hover{background:var(--bg-hover);color:var(--text-primary)}
 .sub-tab-bar{display:flex;gap:2px;background:rgba(255,255,255,.05);border:1px solid var(--border-md);border-radius:var(--r-sm);padding:2px;margin-bottom:16px;width:fit-content}
 .sub-tab-btn{padding:7px 16px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text-muted);border:none;background:transparent}
 .sub-tab-btn.on{background:color-mix(in srgb,var(--tab-color,var(--accent)) 15%,transparent);color:var(--tab-color,var(--accent))}
@@ -333,7 +338,8 @@ const NAV_GROUPS = [
 function navGroupTabs(key){ return key === 'departments' ? DEPTS : NAV_STATIC.filter(t => t.group === key); }
 
 // Single-collection localStorage keys (not per-department)
-const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews', businesses:'lo_businesses' };
+const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews', businesses:'lo_businesses', library:'lo_library' };
+const LIBRARY_CATEGORIES = ['SOPs', 'Playbooks', 'Market', 'Tools', 'General'];
 
 let activeTab = 'home';
 
@@ -375,6 +381,26 @@ function migrateToMultiBusiness(){
     save(NK.businesses, businesses);
   }
   setSchemaVersion(1);
+}
+
+// v1 note.status was null|'in-progress'|'done'|'rejected' (cycled by tapping
+// a pill). v2 replaces it with the 5-exit triage model: open|routed|backlog|rejected.
+function migrateNoteStatuses(){
+  if(getSchemaVersion() >= 2) return;
+  const notes = load(NK.notes);
+  let changed = false;
+  notes.forEach(n => {
+    if(n.status === null || n.status === undefined){ n.status = 'open'; changed = true; }
+    else if(n.status === 'in-progress'){ n.status = 'routed'; n.routedTo = n.routedTo || {type:'task', dept:n.dept||null}; changed = true; }
+    else if(n.status === 'done'){ n.status = 'routed'; n.routedTo = n.routedTo || {type:'manual'}; changed = true; }
+  });
+  if(changed) save(NK.notes, notes);
+  setSchemaVersion(2);
+}
+
+function runMigrations(){
+  migrateToMultiBusiness();
+  migrateNoteStatuses();
 }
 
 let activeBusinessId = localStorage.getItem(ACTIVE_BIZ_KEY) || null;
@@ -467,7 +493,7 @@ function renderMatrix(dept){
 
 function updateAllPills(){
   const setPill = (key, n) => { const el = $('pill-'+key); if(el) el.textContent = n; };
-  setPill('notes', loadScoped(NK.notes).filter(n => n.status === null || n.status === undefined).length);
+  setPill('notes', loadScoped(NK.notes).filter(n => n.status === 'open').length);
   setPill('tasks', allDeptTasksScoped().filter(t => !t.done && t.due && t.due <= today()).length);
   setPill('growth', 0); // real "undecided lessons+ideas" count lands with the Growth pipeline restructure
 }
@@ -725,13 +751,7 @@ function renderHomeHabits(){
 // Capture tab (notes)
 // ---------------------------------------------------------------
 const NOTE_CATS = ['💡 Business Idea','📣 Marketing Idea','💼 Sales Idea','⚙️ Process Improvement','💰 Finance Note','🔗 Resource','🧠 Thought','⚡ Quick Thought'];
-const NOTE_STATUSES = [
-  {v:null, l:'Open', color:'var(--text-muted)'},
-  {v:'in-progress', l:'Scheduled', color:'#60a5fa'},
-  {v:'done', l:'Done', color:'var(--green)'},
-  {v:'rejected', l:'Rejected', color:'var(--red)'},
-];
-let _noteCat = NOTE_CATS[0], _noteDept = null, _noteFilterCat = null;
+let _noteCat = NOTE_CATS[0], _noteDept = null, _noteFilterCat = null, _notePicker = null;
 
 function notesTabHtml(){
   return `
@@ -756,7 +776,9 @@ function notesTabHtml(){
         </div>
       </div>
       <div class="chip-row" id="note-filter-chips" style="margin-bottom:14px"></div>
-      <div class="card"><div id="notes-feed"></div></div>
+      <div class="card" style="margin-bottom:16px"><div id="notes-feed"></div></div>
+      <div class="card-header" style="padding-left:0;border-bottom:none"><div class="card-title">Backlog</div></div>
+      <div class="card"><div id="notes-backlog"></div></div>
     </div>`;
 }
 
@@ -790,40 +812,16 @@ function saveNote(){
   const text = $('note-input').value.trim();
   if(!text) return;
   const notes = load(NK.notes);
-  notes.unshift({id:uid(), businessId: activeBusinessId, text, category:_noteCat, dept:_noteDept, source:$('note-source').value.trim(), status:null, created:today(), ts:Date.now()});
+  notes.unshift({id:uid(), businessId: activeBusinessId, text, category:_noteCat, dept:_noteDept, source:$('note-source').value.trim(), status:'open', routedTo:null, created:today(), ts:Date.now()});
   save(NK.notes, notes);
   $('note-input').value = ''; $('note-source').value = '';
   renderNotes();
   if(activeTab === 'home') renderHome();
 }
 
-function cycleNoteStatus(id){
-  const notes = load(NK.notes);
-  const n = notes.find(x => x.id === id);
-  if(!n) return;
-  const idx = NOTE_STATUSES.findIndex(s => s.v === (n.status ?? null));
-  n.status = NOTE_STATUSES[(idx+1) % NOTE_STATUSES.length].v;
-  save(NK.notes, notes);
-  renderNotes();
-}
-
 function deleteNote(id){
   save(NK.notes, load(NK.notes).filter(n => n.id !== id));
   renderNotes();
-}
-
-function noteToTask(id){
-  const n = load(NK.notes).find(x => x.id === id);
-  if(!n) return;
-  const dept = n.dept || DEPTS[0].key;
-  openTaskModal(dept);
-  setTimeout(() => {
-    const f = $('lo-task-title'); if(f) f.value = n.text.slice(0,120);
-    const d = $('lo-task-due'); if(d) d.value = today();
-  }, 50);
-  const notes = load(NK.notes);
-  const i = notes.findIndex(x => x.id === id);
-  if(i >= 0){ notes[i].status = 'in-progress'; save(NK.notes, notes); }
 }
 
 function noteSourceTag(n){
@@ -833,29 +831,147 @@ function noteSourceTag(n){
   return `<a href="${esc(n.source)}" target="_blank" rel="noopener" class="tag" style="text-decoration:none">🔗 ${esc(host)}</a>`;
 }
 
+function noteUrl(n){
+  if(n.source) return n.source;
+  const m = (n.text||'').match(/https?:\/\/\S+/);
+  return m ? m[0] : null;
+}
+
+// ---------------------------------------------------------------
+// Capture triage — 5 exits: Task, Extract, Reference, Backlog, Reject.
+// Routing writes into the destination collection immediately; only
+// the browsing UI for Growth's To Learn queue (Phase 5) and Library
+// (Phase 6) lands later — the data shape is final now.
+// ---------------------------------------------------------------
+function toggleNotePicker(id, type){
+  _notePicker = (_notePicker && _notePicker.id === id && _notePicker.type === type) ? null : {id, type};
+  renderNotes();
+}
+
+function afterTriage(msg){
+  _notePicker = null;
+  renderNotes();
+  updateAllPills();
+  if(activeTab === 'home') renderHome();
+  if(msg) showToast(msg);
+}
+
+function triageToTask(noteId, dept){
+  const notes = load(NK.notes);
+  const n = notes.find(x => x.id === noteId);
+  if(!n) return;
+  const tasks = load(LOK[dept]);
+  tasks.unshift({id: uid(), businessId: activeBusinessId, title: n.text.slice(0,120), due:'', notes:'', urgency:'not-urgent', importance:'important', done:false, created: today()});
+  save(LOK[dept], tasks);
+  n.status = 'routed';
+  n.routedTo = {type:'task', dept};
+  save(NK.notes, notes);
+  renderMatrix(dept);
+  afterTriage('Routed to ' + deptOf(dept).label + ' tasks');
+}
+
+function triageExtract(noteId){
+  const notes = load(NK.notes);
+  const n = notes.find(x => x.id === noteId);
+  if(!n) return;
+  const url = noteUrl(n);
+  if(!url) return;
+  const items = load(NK.growth);
+  items.unshift({id: uid(), businessId: activeBusinessId, category:'to-learn', url, title: n.text.slice(0,120), status:'queued', sourceNoteId: n.id, createdAt: new Date().toISOString()});
+  save(NK.growth, items);
+  n.status = 'routed';
+  n.routedTo = {type:'growth'};
+  save(NK.notes, notes);
+  afterTriage('Sent to Growth → To Learn');
+}
+
+function triageToLibrary(noteId, category){
+  const notes = load(NK.notes);
+  const n = notes.find(x => x.id === noteId);
+  if(!n) return;
+  const items = load(NK.library);
+  items.unshift({id: uid(), businessId: activeBusinessId, title: n.text.slice(0,120), url: n.source||'', content: n.text, summary:'', category, sourceId:null, createdAt: new Date().toISOString()});
+  save(NK.library, items);
+  n.status = 'routed';
+  n.routedTo = {type:'library', category};
+  save(NK.notes, notes);
+  afterTriage('Saved to Library → ' + category);
+}
+
+function triageBacklog(noteId){
+  const notes = load(NK.notes);
+  const n = notes.find(x => x.id === noteId);
+  if(!n) return;
+  n.status = 'backlog';
+  save(NK.notes, notes);
+  afterTriage();
+}
+
+function triageReject(noteId){
+  const notes = load(NK.notes);
+  const n = notes.find(x => x.id === noteId);
+  if(!n) return;
+  n.status = 'rejected';
+  save(NK.notes, notes);
+  afterTriage();
+}
+
+function noteTriageActions(n){
+  const url = noteUrl(n);
+  const taskOpen = _notePicker && _notePicker.id === n.id && _notePicker.type === 'task';
+  const refOpen = _notePicker && _notePicker.id === n.id && _notePicker.type === 'reference';
+  return `
+    <div class="triage-row">
+      <div class="triage-picker-wrap">
+        <button type="button" class="chip" onclick="toggleNotePicker('${n.id}','task')">→ Task</button>
+        ${taskOpen ? `<div class="triage-dropdown">${DEPTS.map(d => `<div class="triage-opt" onclick="triageToTask('${n.id}','${d.key}')">${d.icon} ${d.label}</div>`).join('')}</div>` : ''}
+      </div>
+      ${url ? `<button type="button" class="chip" onclick="triageExtract('${n.id}')">⇢ Extract</button>` : ''}
+      <div class="triage-picker-wrap">
+        <button type="button" class="chip" onclick="toggleNotePicker('${n.id}','reference')">📚 Reference</button>
+        ${refOpen ? `<div class="triage-dropdown">${LIBRARY_CATEGORIES.map(c => `<div class="triage-opt" onclick="triageToLibrary('${n.id}','${c}')">${c}</div>`).join('')}</div>` : ''}
+      </div>
+      ${n.status !== 'backlog' ? `<button type="button" class="chip" onclick="triageBacklog('${n.id}')">🗂 Backlog</button>` : ''}
+      <button type="button" class="chip" onclick="triageReject('${n.id}')">✕ Reject</button>
+    </div>`;
+}
+
+document.addEventListener('click', e => {
+  if(_notePicker && !e.target.closest('.triage-picker-wrap')){ _notePicker = null; renderNotes(); }
+}, true);
+
+function noteRow(n){
+  return `
+    <div class="list-row" style="flex-direction:column;align-items:stretch">
+      <div style="display:flex;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div class="matrix-task-title">${esc(n.text)}</div>
+          <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <span class="tag">${esc(n.category||'')}</span>
+            ${n.dept?`<span class="tag">${deptOf(n.dept).icon} ${deptOf(n.dept).label}</span>`:''}
+            ${noteSourceTag(n)}
+          </div>
+        </div>
+        <button class="delete-btn" onclick="editNote('${n.id}')" title="Edit" style="font-size:13px">✏️</button>
+        <button class="delete-btn" onclick="deleteNote('${n.id}')" title="Delete">✕</button>
+      </div>
+      ${noteTriageActions(n)}
+    </div>`;
+}
+
 function renderNotes(){
   renderNoteChips();
-  const cats = [...new Set(loadScoped(NK.notes).map(n => n.category).filter(Boolean))];
+  const scoped = loadScoped(NK.notes);
+  const cats = [...new Set(scoped.map(n => n.category).filter(Boolean))];
   $('note-filter-chips').innerHTML = `<button type="button" class="chip ${!_noteFilterCat?'on':''}" onclick="_noteFilterCat=null;renderNotes()">All</button>` +
     cats.map(c => `<button type="button" class="chip ${_noteFilterCat===c?'on':''}" onclick="_noteFilterCat='${c}';renderNotes()">${c}</button>`).join('');
-  let notes = loadScoped(NK.notes).sort((a,b) => b.ts - a.ts);
-  if(_noteFilterCat) notes = notes.filter(n => n.category === _noteFilterCat);
-  const st = v => NOTE_STATUSES.find(s => s.v === (v ?? null)) || NOTE_STATUSES[0];
-  $('notes-feed').innerHTML = notes.length ? notes.map(n => `
-    <div class="list-row">
-      <button class="status-pill" style="background:color-mix(in srgb,${st(n.status).color} 18%,transparent);color:${st(n.status).color}" onclick="cycleNoteStatus('${n.id}')">${st(n.status).l}</button>
-      <div style="flex:1;min-width:0">
-        <div class="matrix-task-title">${esc(n.text)}</div>
-        <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <span class="tag">${esc(n.category||'')}</span>
-          ${n.dept?`<span class="tag">${deptOf(n.dept).icon} ${deptOf(n.dept).label}</span>`:''}
-          ${noteSourceTag(n)}
-        </div>
-      </div>
-      <button class="delete-btn" onclick="editNote('${n.id}')" title="Edit" style="font-size:13px">✏️</button>
-      <button class="delete-btn" onclick="noteToTask('${n.id}')" title="Convert to task">→ Task</button>
-      <button class="delete-btn" onclick="deleteNote('${n.id}')" title="Delete">✕</button>
-    </div>`).join('') : `<div class="empty-state">Nothing captured yet — jot something above.</div>`;
+
+  let open = scoped.filter(n => n.status === 'open').sort((a,b) => b.ts - a.ts);
+  if(_noteFilterCat) open = open.filter(n => n.category === _noteFilterCat);
+  $('notes-feed').innerHTML = open.length ? open.map(noteRow).join('') : `<div class="empty-state">Nothing captured yet — jot something above.</div>`;
+
+  const backlog = scoped.filter(n => n.status === 'backlog').sort((a,b) => b.ts - a.ts);
+  $('notes-backlog').innerHTML = backlog.length ? backlog.map(noteRow).join('') : `<div class="empty-state">Backlog is empty</div>`;
 }
 
 let _editingNote = null;
@@ -1888,7 +2004,7 @@ function switchTab(id){
 }
 
 function init(){
-  migrateToMultiBusiness();
+  runMigrations();
   if(!activeBusinessId){
     const biz = activeBusiness();
     if(biz){ activeBusinessId = biz.id; localStorage.setItem(ACTIVE_BIZ_KEY, biz.id); }
@@ -1924,7 +2040,7 @@ const _SB_KEY = 'sb_publishable_qgfJXOAlB33B2mDNqeWAUQ_nFpBv-bN';
 const _SB_TABLE = 'leanoffice_sync';
 const _SYNC_TS_KEY = '_lo_last_sync';
 const _PENDING_KEY = '_lo_pending';
-const SYNC_COLS = [...DEPTS.map(d => d.key), 'notes', 'goals', 'habits', 'habitLog', 'meetings', 'growth', 'reviews', 'businesses'];
+const SYNC_COLS = [...DEPTS.map(d => d.key), 'notes', 'goals', 'habits', 'habitLog', 'meetings', 'growth', 'reviews', 'businesses', 'library'];
 let _sb = null, _sbUser = null, _bgPollTimer = null;
 
 function initSupabase(){
