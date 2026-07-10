@@ -22,7 +22,7 @@
   --green:#4ade80;--red:#f87171;--yellow:#fbbf24;--orange:#fb923c;
   --r-xs:5px;--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:24px;
   --nav-w:230px;
-  --t-home:#93c5fd;--t-notes:#fde047;--t-tasks:#818cf8;--t-goals:#c084fc;--t-habits:#a3e635;--t-meetings:#2dd4bf;--t-growth:#22d3ee;--t-review:#a78bfa;
+  --t-home:#93c5fd;--t-notes:#fde047;--t-tasks:#818cf8;--t-goals:#c084fc;--t-habits:#a3e635;--t-meetings:#2dd4bf;--t-growth:#22d3ee;--t-review:#a78bfa;--t-library:#fb923c;--t-directory:#e879f9;
   --t-build:#60a5fa;--t-market:#f472b6;--t-sales:#4ade80;--t-operations:#f59e0b;--t-finance:#34d399;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -97,7 +97,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .ph-eyebrow{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;opacity:.7;margin-bottom:4px}
 .ph-title{font-family:'Orbitron',monospace;font-size:22px;font-weight:800;letter-spacing:.02em}
 .ph-sub{font-size:12.5px;color:var(--text-secondary);margin-top:5px;max-width:520px}
-.ph-actions{display:flex;gap:8px;flex-shrink:0}
+.ph-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
 
 /* ---- Buttons / cards ---- */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--r-sm);border:none;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600;font-size:12px;transition:all .15s;text-decoration:none}
@@ -326,6 +326,8 @@ const NAV_STATIC = [
   {key:'habits',   label:'Habits',         icon:'🔁', color:'var(--t-habits)',   pill:false, group:'track'},
   {key:'meetings', label:'Meetings',       icon:'📅', color:'var(--t-meetings)', pill:false, group:'track'},
   {key:'review',   label:'Weekly Review',  icon:'📊', color:'var(--t-review)',   pill:false, group:'reflect', weekendDot:true},
+  {key:'library',  label:'Library',        icon:'📚', color:'var(--t-library)',  pill:false, group:'resources'},
+  {key:'directory',label:'Directory',      icon:'👥', color:'var(--t-directory)',pill:false, group:'resources'},
 ];
 const NAV = [...NAV_STATIC, ...DEPTS];
 const NAV_GROUPS = [
@@ -338,7 +340,7 @@ const NAV_GROUPS = [
 function navGroupTabs(key){ return key === 'departments' ? DEPTS : NAV_STATIC.filter(t => t.group === key); }
 
 // Single-collection localStorage keys (not per-department)
-const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews', businesses:'lo_businesses', library:'lo_library' };
+const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews', businesses:'lo_businesses', library:'lo_library', directory:'lo_directory' };
 const LIBRARY_CATEGORIES = ['SOPs', 'Playbooks', 'Market', 'Tools', 'General'];
 
 let activeTab = 'home';
@@ -495,7 +497,8 @@ function updateAllPills(){
   const setPill = (key, n) => { const el = $('pill-'+key); if(el) el.textContent = n; };
   setPill('notes', loadScoped(NK.notes).filter(n => n.status === 'open').length);
   setPill('tasks', allDeptTasksScoped().filter(t => !t.done && t.due && t.due <= today()).length);
-  setPill('growth', 0); // real "undecided lessons+ideas" count lands with the Growth pipeline restructure
+  const undecided = s => [...(s.lessons||[]), ...(s.ideas||[])].filter(x => !x.decided).length;
+  setPill('growth', loadScoped(NK.growth).filter(g => g.category === 'source').reduce((sum,s) => sum + undecided(s), 0));
 }
 
 function toggleTask(dept, id){
@@ -519,7 +522,7 @@ function deleteTask(dept, id){
 // Task modal (add / edit) — shared across all 5 departments
 // ---------------------------------------------------------------
 let _eimUrgency = null, _eimImportance = null;
-let _editingTask = null, _editingGoal = null, _editingHabit = null, _editingMeeting = null, _editingGrowth = null, _outcomeMeetingId = null;
+let _editingTask = null, _editingGoal = null, _editingHabit = null, _editingMeeting = null, _outcomeMeetingId = null;
 let currentSaveFn = null;
 
 function setEim(dim, val){
@@ -622,7 +625,8 @@ function saveTaskForm(){
 function closeModal(){
   $('modalOverlay').classList.remove('open');
   currentSaveFn = null;
-  _editingTask = null; _editingGoal = null; _editingHabit = null; _editingMeeting = null; _editingGrowth = null; _outcomeMeetingId = null;
+  _editingTask = null; _editingGoal = null; _editingHabit = null; _editingMeeting = null; _outcomeMeetingId = null;
+  _editingContact = null; _editingLibrary = null; _mtgSelectedContacts = [];
   resetEim();
 }
 function closeModalOutside(e){ if(e.target === $('modalOverlay')) closeModal(); }
@@ -637,114 +641,88 @@ function homeTabHtml(){
         <div>
           <div class="ph-eyebrow" style="color:var(--t-home)">LeanOffice</div>
           <div class="ph-title" style="color:var(--t-home)">🏠 Home</div>
-          <div class="ph-sub">Your business at a glance.</div>
+          <div class="ph-sub">Everything due today, across every business.</div>
         </div>
       </div>
-      <div id="home-priorities"></div>
-      <div class="grid-2" style="margin-bottom:14px">
-        <div class="card">
-          <div class="card-header"><div class="card-title">Today's Tasks</div></div>
-          <div class="card-body tight" id="home-tasks"></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">Today's Habits</div></div>
-          <div class="card-body tight" id="home-habits"></div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><div class="card-title">Today</div></div>
+        <div id="home-today"></div>
+      </div>
+      <div id="home-quick-add"></div>
+      <div id="home-weekend"></div>
+    </div>`;
+}
+
+function homeTodayRow(t){
+  const d = deptOf(t._dept);
+  const biz = t._biz;
+  return `
+    <div class="list-row">
+      <div class="check-box" onclick="toggleTask('${t._dept}','${t.id}')">${t.done?'✓':''}</div>
+      <div style="flex:1;min-width:0">
+        <div class="matrix-task-title">${esc(t.title)}</div>
+        <div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          ${biz?`<span class="tag" style="color:${esc(biz.color)}"><span style="width:7px;height:7px;border-radius:50%;background:${esc(biz.color)};display:inline-block;margin-right:4px"></span>${esc(biz.name)}</span>`:''}
+          <span class="tag" style="color:${d.color}">${d.icon} ${d.label}</span>
+          ${t.due?`<span class="matrix-task-notes">📅 ${fmtDateShort(t.due)}</span>`:''}
         </div>
       </div>
-      <div class="grid-2" style="margin-bottom:14px">
-        <div class="card">
-          <div class="card-header"><div class="card-title">Today's Meetings</div></div>
-          <div class="card-body tight" id="home-meetings"></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">Active Goals</div></div>
-          <div class="card-body tight" id="home-goals"></div>
+    </div>`;
+}
+
+function homeQuickAddHtml(){
+  return `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-body">
+        <div style="display:flex;gap:8px">
+          <input class="input" id="home-quick-add-input" placeholder="Quick capture… (Enter to save)" onkeydown="if(event.key==='Enter')homeQuickAddSave()">
+          <button class="btn btn-primary" style="background:var(--t-notes);flex-shrink:0" onclick="homeQuickAddSave()">+ Capture</button>
         </div>
       </div>
-      <div class="card">
-        <div class="card-header"><div class="card-title">Recent Capture</div></div>
-        <div class="card-body tight" id="home-notes"></div>
+    </div>`;
+}
+function homeQuickAddSave(){
+  const inp = $('home-quick-add-input');
+  const text = inp.value.trim();
+  if(!text) return;
+  const notes = load(NK.notes);
+  notes.unshift({id:uid(), businessId: activeBusinessId, text, category: NOTE_CATS[0], dept:null, source:'', status:'open', routedTo:null, created:today(), ts:Date.now()});
+  save(NK.notes, notes);
+  inp.value = '';
+  updateAllPills();
+  if(activeTab === 'notes') renderNotes();
+}
+
+function homeWeekendCardHtml(){
+  const day = new Date().getDay();
+  if(day !== 0 && day !== 6) return '';
+  const businesses = getBusinesses();
+  const allNotes = load(NK.notes);
+  const counts = businesses.map(b => ({biz:b, count: allNotes.filter(n => n.businessId===b.id && n.status==='backlog').length}));
+  return `
+    <div class="card" style="border-color:color-mix(in srgb,var(--t-review) 35%,var(--border))">
+      <div class="card-header"><div class="card-title" style="color:var(--t-review)">📊 Weekly Review Ready</div></div>
+      <div class="card-body">
+        ${counts.map(({biz,count}) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
+            <span><span style="width:8px;height:8px;border-radius:50%;background:${esc(biz.color)};display:inline-block;margin-right:6px"></span>${esc(biz.name)}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted)">${count} backlog</span>
+          </div>`).join('')}
+        <button class="btn btn-primary" style="background:var(--t-review);color:#000;margin-top:10px;width:100%" onclick="switchTab('review')">Go to Weekly Review →</button>
       </div>
     </div>`;
 }
 
 function renderHome(){
-  const tasks = allDeptTasksScoped().filter(t => !t.done);
-  const score = t => {
-    let s = 0;
-    if(t.due && t.due < today()) s += 80;
-    else if(t.due === today()) s += 40;
-    if(t.urgency === 'urgent') s += 20;
-    if(t.importance === 'important') s += 15;
-    return s;
-  };
-  const top = tasks.map(t => ({...t, _score: score(t)})).filter(t => t._score > 0).sort((a,b) => b._score - a._score).slice(0,3);
-  const prEl = $('home-priorities');
-  if(prEl){
-    prEl.innerHTML = top.length ? `
-      <div class="card" style="margin-bottom:14px">
-        <div class="card-header"><div class="card-title">Top Priorities</div></div>
-        <div class="card-body tight">
-          ${top.map((t,i) => `
-            <div class="priority-card" onclick="toggleTask('${t._dept}','${t.id}');renderHome()">
-              <div class="priority-num">0${i+1}</div>
-              <div style="flex:1">
-                <div class="priority-title">${esc(t.title)}</div>
-                <div class="priority-sub">${deptOf(t._dept).icon} ${deptOf(t._dept).label}${t.due?' · 📅 '+fmtDateShort(t.due):''}</div>
-              </div>
-            </div>`).join('')}
-        </div>
-      </div>` : '';
-  }
-
-  const dueToday = tasks.filter(t => t.due === today()).slice(0,6);
-  $('home-tasks').innerHTML = dueToday.length ? dueToday.map(t => `
-    <div class="list-row">
-      <div class="check-box" onclick="toggleTask('${t._dept}','${t.id}');renderHome()">${t.done?'✓':''}</div>
-      <div style="flex:1"><div class="matrix-task-title">${esc(t.title)}</div><span class="tag">${deptOf(t._dept).icon} ${deptOf(t._dept).label}</span></div>
-    </div>`).join('') : `<div class="empty-state">Nothing due today</div>`;
-
-  const meetsToday = loadScoped(NK.meetings).filter(m => m.date === today()).sort((a,b) => (a.time||'') < (b.time||'') ? -1 : 1);
-  $('home-meetings').innerHTML = meetsToday.length ? meetsToday.map(m => `
-    <div class="list-row">
-      <div style="flex:1">
-        <div class="matrix-task-title">${esc(m.title)}</div>
-        <div class="matrix-task-notes">${m.time?fmtTime(m.time):'All day'}${m.dept?' · '+deptOf(m.dept).icon+' '+deptOf(m.dept).label:''}</div>
-      </div>
-    </div>`).join('') : `<div class="empty-state">No meetings today</div>`;
-
-  const goals = loadScoped(NK.goals).slice(0,5);
-  $('home-goals').innerHTML = goals.length ? goals.map(g => `
-    <div class="list-row">
-      <div style="flex:1">
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="matrix-task-title">${esc(g.title)}</span><span style="font-size:11px;color:${safeColor(g.color)||'var(--accent)'}">${g.progress||0}%</span></div>
-        <div class="progress-track"><div class="progress-fill" style="width:${g.progress||0}%;background:${safeColor(g.color)||'var(--accent)'}"></div></div>
-      </div>
-    </div>`).join('') : `<div class="empty-state">No goals yet</div>`;
-
-  const notes = loadScoped(NK.notes).slice(0,5);
-  $('home-notes').innerHTML = notes.length ? notes.map(n => `
-    <div class="list-row">
-      <div style="flex:1"><div class="matrix-task-title">${esc(n.text.slice(0,80))}</div><span class="tag">${esc(n.category||'')}</span></div>
-    </div>`).join('') : `<div class="empty-state">Nothing captured yet</div>`;
-
-  renderHomeHabits();
-}
-
-function renderHomeHabits(){
-  const habits = load(NK.habits);
-  const log = load(NK.habitLog);
-  const el = $('home-habits');
-  if(!el) return;
-  if(!habits.length){ el.innerHTML = `<div class="empty-state">No habits set up</div>`; return; }
-  el.innerHTML = habits.slice(0,6).map(h => {
-    const done = log.some(e => e.habitId === h.id && e.date === today());
-    return `
-    <div class="list-row" style="cursor:pointer" onclick="toggleHabitDay('${h.id}','${today()}')">
-      <div class="check-box" style="${done?'background:var(--t-habits);border-color:var(--t-habits)':''}">${done?'✓':''}</div>
-      <div style="flex:1"><span class="matrix-task-title">${h.icon||'⭐'} ${esc(h.name)}</span></div>
-    </div>`;
-  }).join('');
+  const businesses = getBusinesses();
+  const bizById = Object.fromEntries(businesses.map(b => [b.id, b]));
+  const due = allDeptTasks()
+    .filter(t => !t.done && t.due && t.due <= today())
+    .map(t => ({...t, _biz: bizById[t.businessId]}))
+    .sort((a,b) => a.due < b.due ? -1 : a.due > b.due ? 1 : 0);
+  $('home-today').innerHTML = due.length ? due.map(homeTodayRow).join('') : `<div class="empty-state">Nothing due today or overdue 🎉</div>`;
+  $('home-quick-add').innerHTML = homeQuickAddHtml();
+  $('home-weekend').innerHTML = homeWeekendCardHtml();
 }
 
 // ---------------------------------------------------------------
@@ -1495,19 +1473,53 @@ function meetingModalHtml(m){
       <div class="field"><label>End Time</label><input class="input" id="lo-mtg-end" type="time" value="${m?m.endTime||'':''}"></div>
     </div>
     <div class="field"><label>Attendees</label><input class="input" id="lo-mtg-attendees" value="${m?esc(m.attendees||''):''}" placeholder="Names or emails, comma-separated"></div>
+    <div class="field">
+      <label>Tagged Contacts</label>
+      <div id="m-mtg-contact-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+      <input class="input" id="m-mtg-contact-search" placeholder="Search contacts to tag…" oninput="mtgContactSearch(this.value)" style="font-size:12px" autocomplete="off">
+      <div id="m-mtg-contact-results" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+    </div>
     <div class="field"><label>Notes</label><textarea class="input" id="lo-mtg-notes">${m?esc(m.notes||''):''}</textarea></div>`;
+}
+
+let _mtgSelectedContacts = [];
+function mtgContactSearch(q){
+  const res = $('m-mtg-contact-results');
+  if(!res) return;
+  const q_ = q.toLowerCase().trim();
+  if(!q_){ res.innerHTML = ''; return; }
+  const selectedIds = new Set(_mtgSelectedContacts.map(c => c.id));
+  const matches = load(NK.directory).filter(c => !selectedIds.has(c.id) && ((c.name||'').toLowerCase().includes(q_) || (c.company||'').toLowerCase().includes(q_))).slice(0,8);
+  res.innerHTML = matches.map(c => `<button type="button" class="chip" onclick="mtgSelectContact('${c.id}')">${esc(c.name)}</button>`).join('');
+}
+function mtgSelectContact(id){
+  const c = load(NK.directory).find(x => x.id === id);
+  if(!c || _mtgSelectedContacts.find(x => x.id === id)) return;
+  _mtgSelectedContacts.push({id, name:c.name});
+  renderMtgContactTags();
+  const inp = $('m-mtg-contact-search'); if(inp) inp.value = '';
+  const res = $('m-mtg-contact-results'); if(res) res.innerHTML = '';
+}
+function mtgRemoveContact(id){ _mtgSelectedContacts = _mtgSelectedContacts.filter(c => c.id !== id); renderMtgContactTags(); }
+function renderMtgContactTags(){
+  const el = $('m-mtg-contact-tags');
+  if(!el) return;
+  el.innerHTML = _mtgSelectedContacts.map(c => `<span class="tag">${esc(c.name)} <span style="cursor:pointer" onclick="mtgRemoveContact('${c.id}')">✕</span></span>`).join('');
 }
 
 function openMeetingModal(id){
   const m = id ? load(NK.meetings).find(x => x.id === id) : null;
   _editingMeeting = id || null;
   _mtgDept = m ? (m.dept || null) : null;
+  const contacts = load(NK.directory);
+  _mtgSelectedContacts = m ? (m.contactIds||[]).map(cid => contacts.find(c => c.id === cid)).filter(Boolean).map(c => ({id:c.id, name:c.name})) : [];
   $('modalTitle').textContent = id ? 'Edit Meeting' : 'New Meeting';
   $('modalBody').innerHTML = meetingModalHtml(m);
   $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
   currentSaveFn = saveMeetingForm;
   document.documentElement.style.setProperty('--tab-color', 'var(--t-meetings)');
   renderMtgDeptChips();
+  renderMtgContactTags();
   if(!m) $('lo-mtg-date').value = today();
   $('modalOverlay').classList.add('open');
 }
@@ -1524,6 +1536,7 @@ function saveMeetingForm(){
     dept: _mtgDept,
     attendees: $('lo-mtg-attendees').value.trim(),
     notes: $('lo-mtg-notes').value.trim(),
+    contactIds: _mtgSelectedContacts.map(c => c.id),
   };
   if(_editingMeeting){
     const i = meetings.findIndex(m => m.id === _editingMeeting);
@@ -1535,6 +1548,7 @@ function saveMeetingForm(){
   closeModal();
   renderMeetings();
   if(activeTab === 'home') renderHome();
+  if(activeTab === 'directory') renderDirectory();
 }
 
 function deleteMeeting(id){
@@ -1579,13 +1593,15 @@ function renderMeetings(){
   const meetings = loadScoped(NK.meetings).slice().sort((a,b) => (a.date+(a.time||'')) < (b.date+(b.time||'')) ? -1 : 1);
   const upcoming = meetings.filter(m => m.date >= today() && !m.done);
   const past = meetings.filter(m => m.date < today() || m.done);
+  const contacts = load(NK.directory);
   const row = m => {
     const oc = OUTCOME_OPTS.find(o => o.v === m.outcome);
+    const taggedNames = (m.contactIds||[]).map(id => contacts.find(c => c.id === id)?.name).filter(Boolean);
     return `
     <div class="list-row">
       <div style="flex:1;min-width:0">
         <div class="matrix-task-title">${esc(m.title)}</div>
-        <div class="matrix-task-notes">📅 ${fmtDateShort(m.date)}${m.time?' · '+fmtTime(m.time):''}${m.dept?' · '+deptOf(m.dept).icon+' '+deptOf(m.dept).label:''}${m.attendees?' · '+esc(m.attendees):''}</div>
+        <div class="matrix-task-notes">📅 ${fmtDateShort(m.date)}${m.time?' · '+fmtTime(m.time):''}${m.dept?' · '+deptOf(m.dept).icon+' '+deptOf(m.dept).label:''}${m.attendees?' · '+esc(m.attendees):''}${taggedNames.length?' · 👥 '+esc(taggedNames.join(', ')):''}</div>
         ${oc?`<span class="tag" style="margin-top:4px;color:${oc.color}">${oc.l}</span>`:''}
       </div>
       <button class="delete-btn" onclick="openOutcomeModal('${m.id}')" title="Log outcome">✓</button>
@@ -1605,20 +1621,14 @@ function renderMeetings(){
 }
 
 // ---------------------------------------------------------------
-// Growth tab — Lessons / Skills / Systems (business-relevant swap
-// for LeanFlow's Vocab/Quotes sub-tabs)
+// Growth tab — a pipeline: To Learn queue → Learned sources with
+// lessons/ideas → decided archive. Sources are entered by hand (paste
+// JSON or fill fields) until an outside extraction process exists.
 // ---------------------------------------------------------------
-const GROWTH_SUBTABS = [
-  {key:'lessons', label:'Lessons', icon:'📖'},
-  {key:'skills',  label:'Skills',  icon:'🛠️'},
-  {key:'systems', label:'Systems', icon:'⚙️'},
-];
-const GROWTH_TYPES = [
-  {v:'Book', icon:'📖'}, {v:'Course', icon:'🎓'}, {v:'Video', icon:'🎥'},
-  {v:'Podcast', icon:'🎙️'}, {v:'Article', icon:'📝'}, {v:'Other', icon:'📌'},
-];
-const GROWTH_DOMAINS = ['Marketing','Business','Sales','Finance','Operations','Technical','Leadership','Mindset','Other'];
-let _growthSubtab = 'lessons';
+let _growthArchiveOpen = false;
+let _lessonPicker = null;
+let _extractionToLearnId = null;
+let _editingToLearn = null;
 
 function growthTabHtml(){
   return `
@@ -1627,111 +1637,498 @@ function growthTabHtml(){
         <div>
           <div class="ph-eyebrow" style="color:var(--t-growth)">LeanOffice</div>
           <div class="ph-title" style="color:var(--t-growth)">📈 Growth</div>
-          <div class="ph-sub">Lessons, skills, and systems that make the business better.</div>
+          <div class="ph-sub">Queue what to learn, decide what to keep or act on.</div>
         </div>
-        <div class="ph-actions"><button class="btn btn-primary" style="background:var(--t-growth);color:#000" onclick="openGrowthModal()">+ Add</button></div>
+        <div class="ph-actions">
+          <button class="btn btn-ghost" onclick="openAddToLearnModal()">+ Add to Learn</button>
+          <button class="btn btn-primary" style="background:var(--t-growth);color:#000" onclick="openExtractionModal()">+ Add extraction result</button>
+        </div>
       </div>
-      <div class="sub-tab-bar" id="growth-subtabs"></div>
-      <div id="growth-list"></div>
+      <div class="card-header" style="padding-left:0;border-bottom:none"><div class="card-title">To Learn <span id="toLearnCount"></span></div></div>
+      <div class="card" style="margin-bottom:20px"><div id="to-learn-list"></div></div>
+      <div class="card-header" style="padding-left:0;border-bottom:none"><div class="card-title">Learned</div></div>
+      <div id="learned-list" style="margin-bottom:10px"></div>
+      <div id="learned-archive"></div>
     </div>`;
 }
 
-function switchGrowthSubtab(k){
-  _growthSubtab = k;
+function toLearnHost(url){ try{ return new URL(url).hostname.replace('www.',''); }catch{ return url; } }
+
+function toLearnRow(g){
+  return `
+    <div class="list-row">
+      <button class="status-pill" style="background:color-mix(in srgb,var(--t-growth) 18%,transparent);color:var(--t-growth)" onclick="cycleToLearnStatus('${g.id}')">${esc(g.status)}</button>
+      <div style="flex:1;min-width:0">
+        <div class="matrix-task-title">${esc(g.title||toLearnHost(g.url))}</div>
+        <a href="${esc(g.url)}" target="_blank" rel="noopener" class="matrix-task-notes" style="text-decoration:none;display:inline-block;margin-top:2px">🔗 ${esc(toLearnHost(g.url))}</a>
+      </div>
+      <button class="delete-btn" onclick="openExtractionModal('${g.id}')" title="Process into a Learned source">→ Process</button>
+      <button class="delete-btn" onclick="editToLearnItem('${g.id}')" title="Edit">✏️</button>
+      <button class="delete-btn" onclick="deleteToLearnItem('${g.id}')" title="Delete">✕</button>
+    </div>`;
+}
+
+function toggleLessonPicker(sourceId, lessonId){
+  _lessonPicker = (_lessonPicker && _lessonPicker.sourceId===sourceId && _lessonPicker.lessonId===lessonId) ? null : {sourceId, lessonId};
   renderGrowth();
 }
+document.addEventListener('click', e => {
+  if(_lessonPicker && !e.target.closest('.triage-picker-wrap')){ _lessonPicker = null; renderGrowth(); }
+}, true);
 
-function growthModalHtml(g){
-  const cat = g ? g.category : _growthSubtab;
-  const label = {lessons:'Lesson', skills:'Skill', systems:'System'}[cat] || 'Item';
-  const example = cat==='skills' ? 'Cold outreach' : cat==='systems' ? 'Client onboarding checklist' : 'What I learned launching v1';
+function sourceCard(s){
+  const lessonRow = l => `
+    <div class="list-row" style="${l.decided?'opacity:.45':''}">
+      <div style="flex:1;min-width:0"><div class="matrix-task-title">📖 ${esc(l.text)}</div></div>
+      ${l.decided ? `<span class="tag">${l.keptToLibrary?'Kept':'Discarded'}</span>` : `
+        <div class="triage-picker-wrap">
+          <button type="button" class="chip" onclick="toggleLessonPicker('${s.id}','${l.id}')">Keep → Library</button>
+          ${_lessonPicker && _lessonPicker.sourceId===s.id && _lessonPicker.lessonId===l.id ? `<div class="triage-dropdown">${LIBRARY_CATEGORIES.map(c => `<div class="triage-opt" onclick="keepLessonToLibrary('${s.id}','${l.id}','${c}')">${c}</div>`).join('')}</div>` : ''}
+        </div>
+        <button class="delete-btn" onclick="discardLesson('${s.id}','${l.id}')" title="Discard">✕</button>`}
+    </div>`;
+  const ideaRow = i => `
+    <div class="list-row" style="${i.decided?'opacity:.45':''}">
+      <div style="flex:1;min-width:0"><div class="matrix-task-title">💡 ${esc(i.text)}</div></div>
+      ${i.decided ? `<span class="tag">${i.actedOn?'Acted on':'Discarded'}</span>` : `
+        <button type="button" class="chip" onclick="actOnIdea('${s.id}','${i.id}')">Act</button>
+        <button class="delete-btn" onclick="discardIdea('${s.id}','${i.id}')" title="Discard">✕</button>`}
+    </div>`;
   return `
-    <input type="hidden" id="lo-gr-cat" value="${cat}">
-    <div class="field"><label>${label} Name *</label><input class="input" id="lo-gr-title" value="${g?esc(g.title):''}" placeholder="e.g. ${example}"></div>
-    <div class="field-row">
-      <div class="field"><label>Type</label><select class="select" id="lo-gr-type">${GROWTH_TYPES.map(t => `<option value="${t.v}" ${g&&g.type===t.v?'selected':''}>${t.icon} ${t.v}</option>`).join('')}</select></div>
-      <div class="field"><label>Domain</label><select class="select" id="lo-gr-domain">${GROWTH_DOMAINS.map(d => `<option ${g&&g.domain===d?'selected':''}>${d}</option>`).join('')}</select></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Source</label><input class="input" id="lo-gr-source" value="${g?esc(g.source||''):''}" placeholder="Author, platform, creator"></div>
-      <div class="field"><label>Date</label><input class="input" id="lo-gr-date" type="date" value="${g?g.date||today():today()}"></div>
-    </div>
-    <div class="field"><label>Link</label><input class="input" id="lo-gr-link" value="${g?esc(g.link||''):''}" placeholder="https://…"></div>
-    ${cat==='skills' ? `
-    <div class="field-row">
-      <div class="field"><label>Status</label><select class="select" id="lo-gr-status">
-        <option value="todo" ${g&&g.status==='todo'?'selected':''}>To Do</option>
-        <option value="active" ${!g||g.status==='active'?'selected':''}>Active</option>
-        <option value="done" ${g&&g.status==='done'?'selected':''}>Done</option>
-      </select></div>
-      <div class="field"><label>Progress %</label><input class="input" id="lo-gr-progress" type="number" min="0" max="100" value="${g?g.progress||0:0}"></div>
-    </div>` : ''}
-    <div class="field"><label>Notes</label><textarea class="input" id="lo-gr-notes" style="min-height:120px">${g?esc(g.notes||''):''}</textarea></div>`;
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${esc(s.sourceName)}</div>
+          ${s.summary?`<div class="matrix-task-notes" style="margin-top:4px">${esc(s.summary)}</div>`:''}
+        </div>
+      </div>
+      ${(s.lessons||[]).map(lessonRow).join('')}
+      ${(s.ideas||[]).map(ideaRow).join('')}
+      ${(!s.lessons||!s.lessons.length) && (!s.ideas||!s.ideas.length) ? `<div class="empty-state">No lessons or ideas logged</div>` : ''}
+    </div>`;
 }
 
-function openGrowthModal(id){
-  const g = id ? load(NK.growth).find(x => x.id === id) : null;
-  _editingGrowth = id || null;
-  const label = {lessons:'Lesson', skills:'Skill', systems:'System'}[g ? g.category : _growthSubtab];
-  $('modalTitle').textContent = (id ? 'Edit ' : 'New ') + label;
-  $('modalBody').innerHTML = growthModalHtml(g);
+function toggleGrowthArchive(){ _growthArchiveOpen = !_growthArchiveOpen; renderGrowth(); }
+
+function renderGrowth(){
+  const items = loadScoped(NK.growth);
+  const queue = items.filter(g => g.category === 'to-learn' && g.status !== 'done').sort((a,b) => (b.createdAt||'') < (a.createdAt||'') ? -1 : 1);
+  $('toLearnCount').textContent = `(${queue.length})`;
+  $('to-learn-list').innerHTML = queue.length ? queue.map(toLearnRow).join('') : `<div class="empty-state">Nothing queued — extract a link from Capture or add one here.</div>`;
+
+  const sources = items.filter(g => g.category === 'source');
+  const isDecided = s => [...(s.lessons||[]), ...(s.ideas||[])].every(x => x.decided);
+  const active = sources.filter(s => !isDecided(s));
+  const archived = sources.filter(isDecided);
+  $('learned-list').innerHTML = active.length ? active.map(sourceCard).join('') : `<div class="empty-state">Nothing processed yet</div>`;
+  $('learned-archive').innerHTML = archived.length ? `
+    <div class="card-header" style="padding-left:0;border-bottom:none;cursor:pointer" onclick="toggleGrowthArchive()"><div class="card-title">Decided (${archived.length}) ${_growthArchiveOpen?'▾':'▸'}</div></div>
+    ${_growthArchiveOpen ? archived.map(sourceCard).join('') : ''}` : '';
+}
+
+// ---- To Learn: add / edit / delete / cycle status ----
+function addToLearnModalHtml(){
+  return `
+    <div class="field"><label>URL *</label><input class="input" id="lo-tl-url" placeholder="https://..."></div>
+    <div class="field"><label>Title</label><input class="input" id="lo-tl-title" placeholder="What is it?"></div>`;
+}
+function openAddToLearnModal(){
+  _editingToLearn = null;
+  $('modalTitle').textContent = 'Add to Learn';
+  $('modalBody').innerHTML = addToLearnModalHtml();
   $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
-  currentSaveFn = saveGrowthForm;
+  currentSaveFn = saveToLearnForm;
   document.documentElement.style.setProperty('--tab-color', 'var(--t-growth)');
   $('modalOverlay').classList.add('open');
 }
-
-function saveGrowthForm(){
-  const title = $('lo-gr-title').value.trim();
-  if(!title){ alert('Name required'); return; }
-  const cat = $('lo-gr-cat').value;
+function saveToLearnForm(){
+  const url = $('lo-tl-url').value.trim();
+  if(!url){ alert('URL required'); return; }
   const items = load(NK.growth);
-  const fields = {
-    title, category: cat,
-    type: $('lo-gr-type').value,
-    domain: $('lo-gr-domain').value,
-    source: $('lo-gr-source').value.trim(),
-    date: $('lo-gr-date').value || today(),
-    link: $('lo-gr-link').value.trim(),
-    notes: $('lo-gr-notes').value.trim(),
-  };
-  if(cat === 'skills'){
-    fields.status = $('lo-gr-status').value;
-    fields.progress = Math.max(0, Math.min(100, parseInt($('lo-gr-progress').value) || 0));
-  }
-  if(_editingGrowth){
-    const i = items.findIndex(x => x.id === _editingGrowth);
-    if(i >= 0) items[i] = {...items[i], ...fields};
-  } else {
-    items.unshift({id: uid(), businessId: activeBusinessId, ...fields});
-  }
+  items.unshift({id: uid(), businessId: activeBusinessId, category:'to-learn', url, title: $('lo-tl-title').value.trim(), status:'queued', sourceNoteId:null, createdAt: new Date().toISOString()});
+  save(NK.growth, items);
+  closeModal();
+  renderGrowth();
+  updateAllPills();
+}
+function editToLearnItem(id){
+  const g = load(NK.growth).find(x => x.id === id);
+  if(!g) return;
+  _editingToLearn = id;
+  $('modalTitle').textContent = 'Edit Queue Item';
+  $('modalBody').innerHTML = `
+    <div class="field"><label>URL *</label><input class="input" id="lo-tl-url" value="${esc(g.url)}"></div>
+    <div class="field"><label>Title</label><input class="input" id="lo-tl-title" value="${esc(g.title||'')}"></div>`;
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveEditToLearnForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-growth)');
+  $('modalOverlay').classList.add('open');
+}
+function saveEditToLearnForm(){
+  const items = load(NK.growth);
+  const g = items.find(x => x.id === _editingToLearn);
+  if(!g) return;
+  const url = $('lo-tl-url').value.trim();
+  if(!url){ alert('URL required'); return; }
+  g.url = url;
+  g.title = $('lo-tl-title').value.trim();
   save(NK.growth, items);
   closeModal();
   renderGrowth();
 }
-
-function deleteGrowth(id){
-  save(NK.growth, load(NK.growth).filter(x => x.id !== id));
+function deleteToLearnItem(id){
+  save(NK.growth, load(NK.growth).filter(g => g.id !== id));
+  renderGrowth();
+  updateAllPills();
+}
+function cycleToLearnStatus(id){
+  const items = load(NK.growth);
+  const g = items.find(x => x.id === id);
+  if(!g) return;
+  g.status = g.status === 'queued' ? 'extracting' : 'queued';
+  save(NK.growth, items);
   renderGrowth();
 }
 
-function renderGrowth(){
-  $('growth-subtabs').innerHTML = GROWTH_SUBTABS.map(s => `<button type="button" class="sub-tab-btn ${s.key===_growthSubtab?'on':''}" onclick="switchGrowthSubtab('${s.key}')">${s.icon} ${s.label}</button>`).join('');
-  const items = loadScoped(NK.growth).filter(x => x.category === _growthSubtab).sort((a,b) => (b.date||'') < (a.date||'') ? -1 : 1);
-  const typeIcon = t => (GROWTH_TYPES.find(x => x.v === t) || {}).icon || '📌';
-  $('growth-list').innerHTML = items.length ? `<div class="card">${items.map(g => `
-    <div class="list-row">
-      <div style="font-size:16px;flex-shrink:0">${typeIcon(g.type)}</div>
-      <div style="flex:1;min-width:0">
-        <div class="matrix-task-title">${esc(g.title)}</div>
-        <div class="matrix-task-notes">${esc(g.type||'')}${g.source?' · '+esc(g.source):''}${g.date?' · '+fmtDateShort(g.date):''}</div>
-        ${g.notes?`<div class="matrix-task-notes" style="margin-top:3px">${esc(g.notes.slice(0,140))}</div>`:''}
-        <div style="margin-top:5px"><span class="tag">${esc(g.domain||'')}</span>${g.category==='skills'?`<span class="tag" style="margin-left:6px">${esc(g.status||'active')} · ${g.progress||0}%</span>`:''}</div>
-        ${g.category==='skills'?`<div class="progress-track" style="margin-top:6px"><div class="progress-fill" style="width:${g.progress||0}%;background:var(--t-growth)"></div></div>`:''}
+// ---- Add extraction result (manual data entry until automation exists) ----
+function extractionModalHtml(){
+  const queue = loadScoped(NK.growth).filter(g => g.category==='to-learn' && g.status!=='done');
+  return `
+    <div class="field"><label>Link to queued item (optional)</label>
+      <select class="select" id="lo-ext-tolearn">
+        <option value="">— Manual entry, no queue link —</option>
+        ${queue.map(q => `<option value="${q.id}" ${_extractionToLearnId===q.id?'selected':''}>${esc(q.title||q.url)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field"><label>Paste JSON (optional)</label>
+      <textarea class="input" id="lo-ext-json" placeholder='{"sourceName":"...","summary":"...","lessons":["..."],"ideas":["..."]}' style="min-height:70px"></textarea>
+      <button type="button" class="btn btn-ghost" style="margin-top:6px" onclick="parseExtractionJson()">Parse JSON into fields ↓</button>
+    </div>
+    <div class="field"><label>Source Name *</label><input class="input" id="lo-ext-name" placeholder="Book / article / video title"></div>
+    <div class="field"><label>Summary</label><textarea class="input" id="lo-ext-summary"></textarea></div>
+    <div class="field"><label>Lessons <span style="font-weight:400">(one per line)</span></label><textarea class="input" id="lo-ext-lessons" style="min-height:70px"></textarea></div>
+    <div class="field"><label>Ideas <span style="font-weight:400">(one per line)</span></label><textarea class="input" id="lo-ext-ideas" style="min-height:70px"></textarea></div>`;
+}
+function openExtractionModal(toLearnId){
+  _extractionToLearnId = toLearnId || null;
+  $('modalTitle').textContent = 'Add Extraction Result';
+  $('modalBody').innerHTML = extractionModalHtml();
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveExtractionForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-growth)');
+  $('modalOverlay').classList.add('open');
+  if(toLearnId){
+    const item = load(NK.growth).find(g => g.id === toLearnId);
+    if(item){ const f = $('lo-ext-name'); if(f) f.value = item.title || ''; }
+  }
+}
+function parseExtractionJson(){
+  try{
+    const obj = JSON.parse($('lo-ext-json').value);
+    if(obj.sourceName) $('lo-ext-name').value = obj.sourceName;
+    if(obj.summary) $('lo-ext-summary').value = obj.summary;
+    if(Array.isArray(obj.lessons)) $('lo-ext-lessons').value = obj.lessons.join('\n');
+    if(Array.isArray(obj.ideas)) $('lo-ext-ideas').value = obj.ideas.join('\n');
+  }catch(e){ alert('Could not parse JSON: ' + e.message); }
+}
+function saveExtractionForm(){
+  const sourceName = $('lo-ext-name').value.trim();
+  if(!sourceName){ alert('Source name required'); return; }
+  const toLearnId = $('lo-ext-tolearn').value || null;
+  const lessons = $('lo-ext-lessons').value.split('\n').map(s => s.trim()).filter(Boolean).map(text => ({id: uid(), text, decided:false, keptToLibrary:false}));
+  const ideas = $('lo-ext-ideas').value.split('\n').map(s => s.trim()).filter(Boolean).map(text => ({id: uid(), text, decided:false, actedOn:false}));
+  const items = load(NK.growth);
+  items.unshift({id: uid(), businessId: activeBusinessId, category:'source', toLearnId, sourceName, summary: $('lo-ext-summary').value.trim(), lessons, ideas, createdAt: new Date().toISOString()});
+  if(toLearnId){
+    const q = items.find(x => x.id === toLearnId);
+    if(q) q.status = 'done';
+  }
+  save(NK.growth, items);
+  closeModal();
+  renderGrowth();
+  updateAllPills();
+}
+
+// ---- Lesson / idea decisions ----
+function keepLessonToLibrary(sourceId, lessonId, category){
+  const items = load(NK.growth);
+  const s = items.find(x => x.id === sourceId);
+  const l = s && s.lessons.find(x => x.id === lessonId);
+  if(!l) return;
+  const lib = load(NK.library);
+  lib.unshift({id: uid(), businessId: activeBusinessId, title: l.text.slice(0,120), url:'', content: l.text, summary:'', category, sourceId, createdAt: new Date().toISOString()});
+  save(NK.library, lib);
+  l.decided = true; l.keptToLibrary = true;
+  save(NK.growth, items);
+  _lessonPicker = null;
+  renderGrowth();
+  updateAllPills();
+  showToast('Kept to Library → ' + category);
+}
+function discardLesson(sourceId, lessonId){
+  const items = load(NK.growth);
+  const s = items.find(x => x.id === sourceId);
+  const l = s && s.lessons.find(x => x.id === lessonId);
+  if(!l) return;
+  l.decided = true;
+  save(NK.growth, items);
+  renderGrowth();
+  updateAllPills();
+}
+function actOnIdea(sourceId, ideaId){
+  const items = load(NK.growth);
+  const s = items.find(x => x.id === sourceId);
+  const i = s && s.ideas.find(x => x.id === ideaId);
+  if(!i) return;
+  const notes = load(NK.notes);
+  notes.unshift({id: uid(), businessId: activeBusinessId, text: i.text, category: NOTE_CATS[0], dept:null, source:'', status:'open', routedTo:null, originSourceId: sourceId, created: today(), ts: Date.now()});
+  save(NK.notes, notes);
+  i.decided = true; i.actedOn = true;
+  save(NK.growth, items);
+  renderGrowth();
+  updateAllPills();
+  if(activeTab === 'home') renderHome();
+  showToast('Sent to Capture inbox');
+}
+function discardIdea(sourceId, ideaId){
+  const items = load(NK.growth);
+  const s = items.find(x => x.id === sourceId);
+  const i = s && s.ideas.find(x => x.id === ideaId);
+  if(!i) return;
+  i.decided = true;
+  save(NK.growth, items);
+  renderGrowth();
+  updateAllPills();
+}
+
+// ---------------------------------------------------------------
+// Library tab (Resources) — SOPs (pinned, kept visually scarce),
+// Playbooks, Market, Tools, General. Fed by Reference triage, Growth
+// "Keep to Library", or manual add.
+// ---------------------------------------------------------------
+let _editingLibrary = null;
+
+function libraryTabHtml(){
+  return `
+    <div id="tab-library" class="tab-panel ${activeTab==='library'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-library)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-library)">📚 Library</div>
+          <div class="ph-sub">SOPs, playbooks, and reference material — the business's memory.</div>
+        </div>
+        <div class="ph-actions"><button class="btn btn-primary" style="background:var(--t-library);color:#000" onclick="openLibraryModal()">+ Add</button></div>
       </div>
-      <button class="delete-btn" onclick="openGrowthModal('${g.id}')">✏️</button>
-      <button class="delete-btn" onclick="deleteGrowth('${g.id}')">✕</button>
-    </div>`).join('')}</div>` : `<div class="empty-state">Nothing here yet.</div>`;
+      <div class="field" style="margin-bottom:16px"><input class="input" id="lib-search" placeholder="Search title or content…" oninput="renderLibrary()"></div>
+      <div id="library-list"></div>
+    </div>`;
+}
+
+function libraryRow(it){
+  return `
+    <div class="list-row">
+      <div style="flex:1;min-width:0">
+        <div class="matrix-task-title">${esc(it.title)}</div>
+        ${it.summary?`<div class="matrix-task-notes" style="margin-top:3px">${esc(it.summary)}</div>`:it.content?`<div class="matrix-task-notes" style="margin-top:3px">${esc(it.content.slice(0,140))}</div>`:''}
+        ${it.url?`<a href="${esc(it.url)}" target="_blank" rel="noopener" class="tag" style="margin-top:5px;display:inline-block;text-decoration:none">🔗 Link</a>`:''}
+      </div>
+      <button class="delete-btn" onclick="openLibraryModal('${it.id}')" title="Edit">✏️</button>
+      <button class="delete-btn" onclick="deleteLibraryItem('${it.id}')" title="Delete">✕</button>
+    </div>`;
+}
+
+function renderLibrary(){
+  const searchEl = $('lib-search');
+  if(!searchEl) return;
+  const q = (searchEl.value || '').toLowerCase().trim();
+  const items = loadScoped(NK.library).filter(it =>
+    !q || (it.title||'').toLowerCase().includes(q) || (it.content||'').toLowerCase().includes(q));
+  const byCat = c => items.filter(it => it.category === c).sort((a,b) => (b.createdAt||'') < (a.createdAt||'') ? -1 : 1);
+
+  const sops = byCat('SOPs');
+  const sopsHtml = `
+    <div style="margin-bottom:20px">
+      <div class="card-header" style="padding-left:0;border-bottom:none"><div class="card-title" style="color:var(--t-library)">📌 SOPs (${sops.length})</div></div>
+      <div class="card" style="border-color:color-mix(in srgb,var(--t-library) 35%,var(--border))">${sops.length ? sops.map(libraryRow).join('') : `<div class="empty-state">No SOPs yet</div>`}</div>
+    </div>`;
+
+  const rest = LIBRARY_CATEGORIES.filter(c => c !== 'SOPs').map(c => {
+    const catItems = byCat(c);
+    return `
+      <div class="card-header" style="padding-left:0;border-bottom:none"><div class="card-title">${esc(c)} (${catItems.length})</div></div>
+      <div class="card" style="margin-bottom:16px">${catItems.length ? catItems.map(libraryRow).join('') : `<div class="empty-state">Nothing here yet</div>`}</div>`;
+  }).join('');
+
+  $('library-list').innerHTML = sopsHtml + rest;
+}
+
+function libraryModalHtml(it){
+  return `
+    <div class="field"><label>Title *</label><input class="input" id="lo-lib-title" value="${it?esc(it.title):''}" placeholder="What is this?"></div>
+    <div class="field">
+      <label>Category</label>
+      <div class="chip-row" id="lo-lib-cat-chips">${LIBRARY_CATEGORIES.map(c => `<button type="button" class="chip ${(it?it.category:'General')===c?'on':''}" onclick="document.getElementById('lo-lib-cat').value='${c}';document.querySelectorAll('#lo-lib-cat-chips .chip').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${c}</button>`).join('')}</div>
+      <input type="hidden" id="lo-lib-cat" value="${it?it.category:'General'}">
+    </div>
+    <div class="field"><label>URL (optional)</label><input class="input" id="lo-lib-url" value="${it?esc(it.url||''):''}" placeholder="https://..."></div>
+    <div class="field"><label>Summary (optional)</label><input class="input" id="lo-lib-summary" value="${it?esc(it.summary||''):''}" placeholder="One-line summary"></div>
+    <div class="field"><label>Content</label><textarea class="input" id="lo-lib-content" style="min-height:120px">${it?esc(it.content||''):''}</textarea></div>`;
+}
+function openLibraryModal(id){
+  const it = id ? load(NK.library).find(x => x.id === id) : null;
+  _editingLibrary = id || null;
+  $('modalTitle').textContent = id ? 'Edit Library Item' : 'New Library Item';
+  $('modalBody').innerHTML = libraryModalHtml(it);
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveLibraryForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-library)');
+  $('modalOverlay').classList.add('open');
+}
+function saveLibraryForm(){
+  const title = $('lo-lib-title').value.trim();
+  if(!title){ alert('Title required'); return; }
+  const items = load(NK.library);
+  const fields = {
+    title,
+    category: $('lo-lib-cat').value || 'General',
+    url: $('lo-lib-url').value.trim(),
+    summary: $('lo-lib-summary').value.trim(),
+    content: $('lo-lib-content').value.trim(),
+  };
+  if(_editingLibrary){
+    const i = items.findIndex(x => x.id === _editingLibrary);
+    if(i >= 0) items[i] = {...items[i], ...fields};
+  } else {
+    items.unshift({id: uid(), businessId: activeBusinessId, sourceId:null, ...fields, createdAt: new Date().toISOString()});
+  }
+  save(NK.library, items);
+  closeModal();
+  renderLibrary();
+}
+function deleteLibraryItem(id){
+  save(NK.library, load(NK.library).filter(x => x.id !== id));
+  renderLibrary();
+}
+
+// ---------------------------------------------------------------
+// Directory tab (Resources, GLOBAL — no businessId, shared across
+// every business). Field names match LeanFlow's own directory
+// schema so a future shared-table merge is a straight rename.
+// ---------------------------------------------------------------
+let _editingContact = null;
+const CONTACT_CATEGORIES = ['Client','Lead','Partner','Investor','Mentor','Colleague','Friend','Vendor','Referral','Other'];
+
+function directoryTabHtml(){
+  return `
+    <div id="tab-directory" class="tab-panel ${activeTab==='directory'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-directory)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-directory)">👥 Directory</div>
+          <div class="ph-sub">Contacts, shared across every business.</div>
+        </div>
+        <div class="ph-actions"><button class="btn btn-primary" style="background:var(--t-directory);color:#000" onclick="openContactModal()">+ Add Contact</button></div>
+      </div>
+      <div class="field" style="margin-bottom:16px"><input class="input" id="dir-search" placeholder="Search name, company, tags…" oninput="renderDirectory()"></div>
+      <div class="card"><div id="directory-list"></div></div>
+    </div>`;
+}
+
+function contactMeetingCount(id){
+  return load(NK.meetings).filter(m => (m.contactIds||[]).includes(id)).length;
+}
+
+function directoryRow(c){
+  const n = contactMeetingCount(c.id);
+  return `
+    <div class="list-row">
+      <div style="flex:1;min-width:0">
+        <div class="matrix-task-title">${esc(c.name)}</div>
+        <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${c.category?`<span class="tag">${esc(c.category)}</span>`:''}
+          ${c.company?`<span class="tag">${esc(c.company)}</span>`:''}
+          ${n?`<span class="tag">📅 ${n} meeting${n===1?'':'s'}</span>`:''}
+          ${(c.tags||[]).map(t => `<span class="tag">#${esc(t)}</span>`).join('')}
+        </div>
+        ${c.email||c.phone?`<div class="matrix-task-notes" style="margin-top:4px">${esc(c.email||'')}${c.email&&c.phone?' · ':''}${esc(c.phone||'')}</div>`:''}
+      </div>
+      <button class="delete-btn" onclick="openContactModal('${c.id}')" title="Edit">✏️</button>
+      <button class="delete-btn" onclick="deleteContact('${c.id}')" title="Delete">✕</button>
+    </div>`;
+}
+
+function renderDirectory(){
+  const searchEl = $('dir-search');
+  if(!searchEl) return;
+  const q = (searchEl.value||'').toLowerCase().trim();
+  const contacts = load(NK.directory).filter(c => {
+    if(!q) return true;
+    const hay = [c.name, c.company, c.email, ...(c.tags||[])].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  }).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  $('directory-list').innerHTML = contacts.length ? contacts.map(directoryRow).join('') : `<div class="empty-state">No contacts yet — add one above.</div>`;
+}
+
+function contactModalHtml(c){
+  return `
+    <div class="field"><label>Name *</label><input class="input" id="lo-con-name" value="${c?esc(c.name):''}" placeholder="Full name"></div>
+    <div class="field">
+      <label>Category</label>
+      <div class="chip-row" id="lo-con-cat-chips">${CONTACT_CATEGORIES.map(cat => `<button type="button" class="chip ${c&&c.category===cat?'on':''}" onclick="document.getElementById('lo-con-cat').value='${cat}';document.querySelectorAll('#lo-con-cat-chips .chip').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${cat}</button>`).join('')}</div>
+      <input type="hidden" id="lo-con-cat" value="${c?esc(c.category||''):''}">
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Company</label><input class="input" id="lo-con-company" value="${c?esc(c.company||''):''}"></div>
+      <div class="field"><label>Email</label><input class="input" id="lo-con-email" type="email" value="${c?esc(c.email||''):''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Phone</label><input class="input" id="lo-con-phone" value="${c?esc(c.phone||''):''}"></div>
+      <div class="field"><label>LinkedIn URL</label><input class="input" id="lo-con-linkedin" value="${c?esc(c.linkedIn||''):''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Tags <span style="font-weight:400">(comma-separated)</span></label><input class="input" id="lo-con-tags" value="${c?esc((c.tags||[]).join(', ')):''}"></div>
+      <div class="field"><label>Source</label><input class="input" id="lo-con-source" value="${c?esc(c.source||''):''}" placeholder="Referral, event…"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea class="input" id="lo-con-notes">${c?esc(c.notes||''):''}</textarea></div>`;
+}
+function openContactModal(id){
+  const c = id ? load(NK.directory).find(x => x.id === id) : null;
+  _editingContact = id || null;
+  $('modalTitle').textContent = id ? 'Edit Contact' : 'New Contact';
+  $('modalBody').innerHTML = contactModalHtml(c);
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveContactForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-directory)');
+  $('modalOverlay').classList.add('open');
+}
+function saveContactForm(){
+  const name = $('lo-con-name').value.trim();
+  if(!name){ alert('Name required'); return; }
+  const contacts = load(NK.directory);
+  const fields = {
+    name,
+    category: $('lo-con-cat').value || '',
+    company: $('lo-con-company').value.trim(),
+    email: $('lo-con-email').value.trim(),
+    phone: $('lo-con-phone').value.trim(),
+    linkedIn: $('lo-con-linkedin').value.trim(),
+    tags: $('lo-con-tags').value.split(',').map(s => s.trim()).filter(Boolean),
+    source: $('lo-con-source').value.trim(),
+    notes: $('lo-con-notes').value.trim(),
+  };
+  if(_editingContact){
+    const i = contacts.findIndex(x => x.id === _editingContact);
+    if(i >= 0) contacts[i] = {...contacts[i], ...fields};
+  } else {
+    contacts.unshift({id: uid(), ...fields, createdAt: new Date().toISOString()});
+  }
+  save(NK.directory, contacts);
+  closeModal();
+  renderDirectory();
+}
+function deleteContact(id){
+  save(NK.directory, load(NK.directory).filter(c => c.id !== id));
+  renderDirectory();
 }
 
 // ---------------------------------------------------------------
@@ -1910,7 +2307,7 @@ function saveBusinessForm(){
 
 function rerenderScopedViews(){
   DEPTS.forEach(d => renderMatrix(d.key));
-  renderHome(); renderNotes(); renderTasks(); renderGoals(); renderMeetings(); renderGrowth(); renderReview();
+  renderHome(); renderNotes(); renderTasks(); renderGoals(); renderMeetings(); renderGrowth(); renderReview(); renderLibrary();
   updateAllPills();
 }
 
@@ -1973,14 +2370,14 @@ function deptTabHtml(d){
 
 const RENDER_FNS = {
   home: renderHome, notes: renderNotes, tasks: renderTasks, goals: renderGoals, habits: renderHabits,
-  meetings: renderMeetings, growth: renderGrowth, review: renderReview,
+  meetings: renderMeetings, growth: renderGrowth, review: renderReview, library: renderLibrary, directory: renderDirectory,
 };
 
 function buildShell(){
   buildNavHtml();
 
   $('mainTabs').innerHTML = [
-    homeTabHtml(), notesTabHtml(), tasksTabHtml(), goalsTabHtml(), habitsTabHtml(), meetingsTabHtml(), growthTabHtml(), reviewTabHtml(),
+    homeTabHtml(), notesTabHtml(), tasksTabHtml(), goalsTabHtml(), habitsTabHtml(), meetingsTabHtml(), growthTabHtml(), reviewTabHtml(), libraryTabHtml(), directoryTabHtml(),
     ...DEPTS.map(deptTabHtml),
   ].join('');
 
@@ -2012,6 +2409,7 @@ function init(){
   buildShell();
   rerenderScopedViews();
   renderHabits();
+  renderDirectory();
 }
 
 // ---------------------------------------------------------------
@@ -2040,7 +2438,7 @@ const _SB_KEY = 'sb_publishable_qgfJXOAlB33B2mDNqeWAUQ_nFpBv-bN';
 const _SB_TABLE = 'leanoffice_sync';
 const _SYNC_TS_KEY = '_lo_last_sync';
 const _PENDING_KEY = '_lo_pending';
-const SYNC_COLS = [...DEPTS.map(d => d.key), 'notes', 'goals', 'habits', 'habitLog', 'meetings', 'growth', 'reviews', 'businesses', 'library'];
+const SYNC_COLS = [...DEPTS.map(d => d.key), 'notes', 'goals', 'habits', 'habitLog', 'meetings', 'growth', 'reviews', 'businesses', 'library', 'directory'];
 let _sb = null, _sbUser = null, _bgPollTimer = null;
 
 function initSupabase(){
@@ -2153,6 +2551,7 @@ function startBgPoll(){
       await _sbDoPull();
       rerenderScopedViews();
       renderHabits();
+      renderDirectory();
       renderBizSwitcher();
     }catch(e){ console.warn('LeanOffice background poll error', e); }
   }, 60000);
