@@ -59,7 +59,11 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .sb-sub{font-size:9px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--text-muted)}
 .sb-date{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);margin-top:3px;opacity:.7}
 .sb-nav{flex:1;padding:4px 10px;overflow-y:auto;display:flex;flex-direction:column;gap:1px}
-.sb-section{padding:12px 12px 4px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted)}
+.sb-section{padding:12px 12px 4px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none}
+.sb-section:hover{color:var(--text-secondary)}
+.sb-caret{font-size:8px}
+.sb-group{display:flex;flex-direction:column;gap:1px}
+.sb-group.collapsed{display:none}
 .nav-btn{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-sm);border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px;font-weight:500;width:100%;text-align:left;transition:all .15s;position:relative}
 .nav-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
 .nav-btn.active{color:var(--tab-color,var(--accent));background:color-mix(in srgb,var(--tab-color,var(--accent)) 10%,transparent)}
@@ -303,20 +307,29 @@ const DEPTS = [
   {key:'finance',    label:'Finance',    icon:'💰', color:'var(--t-finance)',    desc:'Cash flow, budgeting, and financial planning.'},
 ];
 const LOK = {}; // localStorage key per department (task collections)
-DEPTS.forEach(d => LOK[d.key] = 'lo_' + d.key);
+DEPTS.forEach(d => { LOK[d.key] = 'lo_' + d.key; d.pill = false; });
 function deptOf(key){ return DEPTS.find(d => d.key === key); }
 
 // Overview tabs (fixed, hand-built markup — not homogeneous like DEPTS)
+// group: null = ungrouped (Home, sits directly under the business switcher).
 const NAV_STATIC = [
-  {key:'home',     label:'Home',           icon:'🏠', color:'var(--t-home)',     pill:false},
-  {key:'notes',    label:'Capture',        icon:'💡', color:'var(--t-notes)'},
-  {key:'goals',    label:'Goals',          icon:'🎯', color:'var(--t-goals)'},
-  {key:'habits',   label:'Habits',         icon:'🔁', color:'var(--t-habits)'},
-  {key:'meetings', label:'Meetings',       icon:'📅', color:'var(--t-meetings)'},
-  {key:'growth',   label:'Growth',         icon:'📈', color:'var(--t-growth)',   pill:false},
-  {key:'review',   label:'Weekly Review',  icon:'📊', color:'var(--t-review)',   pill:false},
+  {key:'home',     label:'Home',           icon:'🏠', color:'var(--t-home)',     pill:false, group:null},
+  {key:'notes',    label:'Capture',        icon:'💡', color:'var(--t-notes)',    pill:true,  group:'workflow'},
+  {key:'growth',   label:'Growth',         icon:'📈', color:'var(--t-growth)',   pill:true,  group:'workflow'},
+  {key:'goals',    label:'Goals',          icon:'🎯', color:'var(--t-goals)',    pill:false, group:'track'},
+  {key:'habits',   label:'Habits',         icon:'🔁', color:'var(--t-habits)',   pill:false, group:'track'},
+  {key:'meetings', label:'Meetings',       icon:'📅', color:'var(--t-meetings)', pill:false, group:'track'},
+  {key:'review',   label:'Weekly Review',  icon:'📊', color:'var(--t-review)',   pill:false, group:'reflect', weekendDot:true},
 ];
 const NAV = [...NAV_STATIC, ...DEPTS];
+const NAV_GROUPS = [
+  {key:'workflow',    label:'Workflow'},
+  {key:'departments', label:'Departments'},
+  {key:'track',       label:'Track'},
+  {key:'reflect',     label:'Reflect'},
+  {key:'resources',   label:'Resources'},
+];
+function navGroupTabs(key){ return key === 'departments' ? DEPTS : NAV_STATIC.filter(t => t.group === key); }
 
 // Single-collection localStorage keys (not per-department)
 const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews', businesses:'lo_businesses' };
@@ -449,25 +462,12 @@ function renderMatrix(dept){
     </div>` : '';
 
   el.innerHTML = `<div class="matrix-grid">${EIM_Q.map(quadrant).join('')}</div>${unsortedSection}`;
-  updatePill(dept);
-}
-
-function updatePill(dept){
-  const el = $('pill-' + dept);
-  if(!el) return;
-  el.textContent = loadScoped(LOK[dept]).filter(t => !t.done).length;
 }
 
 function updateAllPills(){
-  DEPTS.forEach(d => updatePill(d.key));
   const setPill = (key, n) => { const el = $('pill-'+key); if(el) el.textContent = n; };
   setPill('notes', loadScoped(NK.notes).filter(n => n.status === null || n.status === undefined).length);
-  setPill('goals', loadScoped(NK.goals).length);
-  const habits = load(NK.habits);
-  const log = load(NK.habitLog);
-  const doneToday = habits.filter(h => log.some(e => e.habitId === h.id && e.date === today())).length;
-  setPill('habits', habits.length - doneToday);
-  setPill('meetings', loadScoped(NK.meetings).filter(m => m.date === today() && !m.done).length);
+  setPill('growth', 0); // real "undecided lessons+ideas" count lands with the Growth pipeline restructure
 }
 
 function toggleTask(dept, id){
@@ -1730,10 +1730,40 @@ function rerenderScopedViews(){
 // Sidebar + tabs
 // ---------------------------------------------------------------
 function navBtn(t){
-  const pillHtml = t.pill===false ? '' : `<span class="nav-pill" id="pill-${t.key}" style="background:color-mix(in srgb,${t.color} 18%,transparent);color:${t.color}">0</span>`;
+  let pillHtml = '';
+  if(t.weekendDot){
+    const day = new Date().getDay();
+    if(day === 0 || day === 6) pillHtml = `<span class="nav-pill" style="background:color-mix(in srgb,${t.color} 18%,transparent);color:${t.color}">●</span>`;
+  } else if(t.pill){
+    pillHtml = `<span class="nav-pill" id="pill-${t.key}" style="background:color-mix(in srgb,${t.color} 18%,transparent);color:${t.color}">0</span>`;
+  }
   return `<button class="nav-btn ${t.key===activeTab?'active':''}" data-tab="${t.key}" style="--tab-color:${t.color}" onclick="switchTab('${t.key}')">
     <span class="nav-emoji">${t.icon}</span>${t.label}${pillHtml}
   </button>`;
+}
+
+// ---------------------------------------------------------------
+// Sidebar nav grouping — collapsible sections, state remembered
+// ---------------------------------------------------------------
+const SB_COLLAPSED_KEY = '_lo_sb_collapsed';
+function getCollapsedGroups(){ try{ return JSON.parse(localStorage.getItem(SB_COLLAPSED_KEY) || '{}'); }catch{ return {}; } }
+function toggleSbGroup(key){
+  const c = getCollapsedGroups();
+  c[key] = !c[key];
+  localStorage.setItem(SB_COLLAPSED_KEY, JSON.stringify(c));
+  buildNavHtml();
+}
+function sbGroupHtml(g){
+  const tabs = navGroupTabs(g.key);
+  if(!tabs.length) return '';
+  const collapsed = !!getCollapsedGroups()[g.key];
+  return `
+    <div class="sb-section" onclick="toggleSbGroup('${g.key}')">${g.label}<span class="sb-caret">${collapsed?'▸':'▾'}</span></div>
+    <div class="sb-group ${collapsed?'collapsed':''}">${tabs.map(navBtn).join('')}</div>`;
+}
+function buildNavHtml(){
+  const home = NAV_STATIC.find(t => t.key === 'home');
+  $('sbNav').innerHTML = navBtn(home) + NAV_GROUPS.map(sbGroupHtml).join('');
 }
 
 function deptTabHtml(d){
@@ -1759,11 +1789,7 @@ const RENDER_FNS = {
 };
 
 function buildShell(){
-  $('sbNav').innerHTML = `
-    <div class="sb-section">Overview</div>
-    ${NAV_STATIC.map(navBtn).join('')}
-    <div class="sb-section">Departments</div>
-    ${DEPTS.map(navBtn).join('')}`;
+  buildNavHtml();
 
   $('mainTabs').innerHTML = [
     homeTabHtml(), notesTabHtml(), goalsTabHtml(), habitsTabHtml(), meetingsTabHtml(), growthTabHtml(), reviewTabHtml(),
