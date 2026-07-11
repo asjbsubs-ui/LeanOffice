@@ -428,6 +428,47 @@ function runMigrations(){
   migrateNoteStatuses();
 }
 
+// Two devices that each run migrateToMultiBusiness() offline before ever
+// syncing will each mint their own "StreamLean" business with a different
+// id; a later sync pull merges by id, not by name, so both survive as
+// duplicates. This reconciles them by name whenever it's called — safe to
+// run on every load/pull, a no-op when there's nothing to merge — and
+// remaps every businessId reference (including Library, which predates
+// SCOPED_KEYS) so no data is orphaned under a removed duplicate.
+function mergeDuplicateBusinesses(){
+  const businesses = load(NK.businesses);
+  if(businesses.length < 2) return;
+  const groups = {};
+  businesses.forEach(b => {
+    const key = (b.name||'').trim().toLowerCase();
+    (groups[key] = groups[key] || []).push(b);
+  });
+  const idRemap = {};
+  const survivors = [];
+  let changed = false;
+  Object.values(groups).forEach(group => {
+    if(group.length === 1){ survivors.push(group[0]); return; }
+    group.sort((a,b) => (a.createdAt||'') < (b.createdAt||'') ? -1 : 1);
+    survivors.push(group[0]);
+    group.slice(1).forEach(dup => { idRemap[dup.id] = group[0].id; });
+    changed = true;
+  });
+  if(!changed) return;
+  [...SCOPED_KEYS, NK.library].forEach(k => {
+    const arr = load(k);
+    let arrChanged = false;
+    arr.forEach(item => {
+      if(item.businessId && idRemap[item.businessId]){ item.businessId = idRemap[item.businessId]; arrChanged = true; }
+    });
+    if(arrChanged) save(k, arr);
+  });
+  save(NK.businesses, survivors);
+  if(idRemap[activeBusinessId]){
+    activeBusinessId = idRemap[activeBusinessId];
+    localStorage.setItem(ACTIVE_BIZ_KEY, activeBusinessId);
+  }
+}
+
 let activeBusinessId = localStorage.getItem(ACTIVE_BIZ_KEY) || null;
 function getBusinesses(){ return load(NK.businesses); }
 function activeBusiness(){
@@ -2521,6 +2562,7 @@ function switchTab(id){
 
 function init(){
   runMigrations();
+  mergeDuplicateBusinesses();
   if(!activeBusinessId){
     const biz = activeBusiness();
     if(biz){ activeBusinessId = biz.id; localStorage.setItem(ACTIVE_BIZ_KEY, biz.id); }
@@ -2668,6 +2710,7 @@ function startBgPoll(){
     if(!_sb || !_sbUser) return;
     try{
       await _sbDoPull();
+      mergeDuplicateBusinesses();
       rerenderScopedViews();
       renderHabits();
       renderDirectory();
