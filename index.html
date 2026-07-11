@@ -98,6 +98,31 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .ph-title{font-family:'Orbitron',monospace;font-size:22px;font-weight:800;letter-spacing:.02em}
 .ph-sub{font-size:12.5px;color:var(--text-secondary);margin-top:5px;max-width:520px}
 .ph-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.logs-btn{display:flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--r-sm);border:1px solid var(--border-md);background:transparent;color:var(--text-secondary);cursor:pointer;font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;transition:all .15s}
+.logs-btn:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border-strong)}
+/* ── Logs page ── */
+.logs-bar{height:54px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 24px;flex-shrink:0;background:var(--bg-card)}
+.logs-back{display:flex;align-items:center;gap:7px;padding:7px 16px;border:1px solid var(--border-md);border-radius:var(--r-sm);background:transparent;color:var(--text-secondary);cursor:pointer;font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;transition:all .15s;flex-shrink:0}
+.logs-back:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border-strong)}
+.logs-page-title{font-family:'Orbitron',monospace;font-size:12px;font-weight:800;color:var(--text-bright);letter-spacing:.04em;flex:1}
+.logs-content{padding:24px 28px;overflow-y:auto;flex:1}
+.db-search{background:var(--bg-input);border:1px solid var(--border-md);border-radius:var(--r-xs);padding:6px 12px;font-family:'Outfit',sans-serif;font-size:12px;color:var(--text-primary);outline:none;width:220px;transition:border-color .15s}
+.db-search:focus{border-color:var(--accent)}
+.db-search::placeholder{color:var(--text-muted)}
+.db-count{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);flex-shrink:0}
+.db-table{width:100%;border-collapse:collapse;font-size:12px}
+.db-table th{text-align:left;font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);padding:10px 14px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;white-space:nowrap;position:sticky;top:0;background:var(--bg);z-index:1}
+.db-table td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--text-secondary);vertical-align:middle}
+.db-table tr:last-child td{border-bottom:none}
+.db-table tbody tr:hover td{background:rgba(255,255,255,.02);color:var(--text-primary)}
+.db-empty{padding:48px;text-align:center;font-size:13px;color:var(--text-muted)}
+.db-section-label{font-family:'Orbitron',monospace;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);padding:18px 0 8px;display:block}
+@media (max-width:768px){
+  .db-search{width:100%!important}
+  .db-table{font-size:11px;min-width:1000px}
+  .db-table th{padding:8px 12px;white-space:nowrap}
+  .db-table td{padding:8px 12px;white-space:normal;word-break:break-word}
+}
 
 /* ---- Buttons / cards ---- */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--r-sm);border:none;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:600;font-size:12px;transition:all .15s;text-decoration:none}
@@ -908,6 +933,7 @@ function notesTabHtml(){
           <div class="ph-title" style="color:var(--t-notes)">💡 Capture</div>
           <div class="ph-sub">Never lose a business idea.</div>
         </div>
+        <div class="ph-actions"><button class="logs-btn" onclick="openLogs('notes')">📋 Logs</button></div>
       </div>
       <div class="card" style="margin-bottom:16px">
         <div class="card-body">
@@ -1193,6 +1219,7 @@ function tasksTabHtml(){
           <div class="ph-title" style="color:var(--t-tasks)">✅ Tasks</div>
           <div class="ph-sub">Everything due, across every department — the doing lens.</div>
         </div>
+        <div class="ph-actions"><button class="logs-btn" onclick="openLogs('tasks')">📋 Logs</button></div>
       </div>
       <div class="sub-tab-bar" id="tasks-lenses"></div>
       <div id="tasks-list"></div>
@@ -1257,7 +1284,7 @@ function goalsTabHtml(){
           <div class="ph-title" style="color:var(--t-goals)">🎯 Goals</div>
           <div class="ph-sub">What you're building toward.</div>
         </div>
-        <div class="ph-actions"><button class="btn btn-primary" style="background:var(--t-goals);color:#000" onclick="openGoalModal()">+ Add Goal</button></div>
+        <div class="ph-actions"><button class="logs-btn" onclick="openLogs('goals')">📋 Logs</button><button class="btn btn-primary" style="background:var(--t-goals);color:#000" onclick="openGoalModal()">+ Add Goal</button></div>
       </div>
       <div id="goals-list"></div>
     </div>`;
@@ -1399,7 +1426,7 @@ function habitsTabHtml(){
           <div class="ph-title" style="color:var(--t-habits)">🔁 Habits</div>
           <div class="ph-sub">Small daily wins compound into massive results.</div>
         </div>
-        <div class="ph-actions"><button class="btn btn-primary" style="background:var(--t-habits);color:#000" onclick="openHabitModal()">+ Add Habit</button></div>
+        <div class="ph-actions"><button class="logs-btn" onclick="openLogs('habits')">📋 Logs</button><button class="btn btn-primary" style="background:var(--t-habits);color:#000" onclick="openHabitModal()">+ Add Habit</button></div>
       </div>
       <div class="stat-grid" id="habit-stats"></div>
       <div class="card">
@@ -1603,7 +1630,7 @@ function meetingsTabHtml(){
           <div class="ph-title" style="color:var(--t-meetings)">📅 Meetings</div>
           <div class="ph-sub">Client calls, team syncs, and everything in between.</div>
         </div>
-        <div class="ph-actions"><button class="btn btn-primary" style="background:var(--t-meetings);color:#000" onclick="openMeetingModal()">+ Add Meeting</button></div>
+        <div class="ph-actions"><button class="logs-btn" onclick="openLogs('meetings')">📋 Logs</button><button class="btn btn-primary" style="background:var(--t-meetings);color:#000" onclick="openMeetingModal()">+ Add Meeting</button></div>
       </div>
       <div id="meetings-list"></div>
     </div>`;
@@ -2539,6 +2566,7 @@ function buildShell(){
   $('mainTabs').innerHTML = [
     homeTabHtml(), notesTabHtml(), tasksTabHtml(), goalsTabHtml(), habitsTabHtml(), meetingsTabHtml(), growthTabHtml(), reviewTabHtml(), libraryTabHtml(), directoryTabHtml(),
     ...DEPTS.map(deptTabHtml),
+    logsPageHtml(),
   ].join('');
 
   $('sbDate').textContent = new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
@@ -2547,7 +2575,8 @@ function buildShell(){
 }
 
 function switchTab(id){
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  if(_logsTab){ _logsTab = null; $('logs-page').style.display = 'none'; }
+  document.querySelectorAll('.tab-panel').forEach(p => { p.classList.remove('active'); p.style.removeProperty('display'); });
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   $('tab-' + id).classList.add('active');
   const btn = document.querySelector(`.nav-btn[data-tab="${id}"]`);
@@ -2558,6 +2587,224 @@ function switchTab(id){
   $('mobTitle').textContent = t.label;
   if(RENDER_FNS[id]) RENDER_FNS[id](); else renderMatrix(id);
   if(window.innerWidth <= 768) closeMobSidebar();
+}
+
+// ---------------------------------------------------------------
+// Logs — full-history view per collection, mirrors LeanFlow's Logs
+// page. Every tab that hides completed/routed/rejected items needs
+// a way to see them again; this is that view.
+// ---------------------------------------------------------------
+let _logsTab = null;
+const LOG_TITLES = { notes:'Capture', tasks:'Tasks', goals:'Goals', habits:'Habits', meetings:'Meetings' };
+let _logsNoteStatusFilter = '';
+const _logsDateSort = {};
+
+function logsPageHtml(){
+  return `
+    <div id="logs-page" style="display:none;height:100%;flex-direction:column">
+      <div class="logs-bar">
+        <button class="logs-back" onclick="closeLogs()">← Back</button>
+        <span class="logs-page-title" id="logs-title">Logs</span>
+        <input class="db-search" id="logs-search" placeholder="Search…" oninput="renderCurrentLogs(this.value)">
+        <span class="db-count" id="logs-count"></span>
+      </div>
+      <div class="logs-content" id="logs-content"></div>
+    </div>`;
+}
+
+function openLogs(tab){
+  _logsTab = tab;
+  _logsNoteStatusFilter = '';
+  if(window.innerWidth <= 768) closeMobSidebar();
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  const lp = $('logs-page');
+  lp.style.display = 'flex';
+  $('logs-title').textContent = (LOG_TITLES[tab] || tab) + ' — Logs';
+  $('logs-search').value = '';
+  renderCurrentLogs('');
+}
+
+function closeLogs(){
+  _logsTab = null;
+  $('logs-page').style.display = 'none';
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.style.display = p.classList.contains('active') ? 'block' : 'none';
+  });
+}
+
+function toggleLogsDateSort(tab){
+  _logsDateSort[tab] = _logsDateSort[tab] === 'asc' ? 'desc' : 'asc';
+  renderCurrentLogs(($('logs-search') || {value:''}).value);
+}
+function sortHdr(tab, label){
+  const d = _logsDateSort[tab] || 'desc';
+  return `<span style="cursor:pointer;user-select:none;white-space:nowrap" onclick="toggleLogsDateSort('${tab}')" title="Sort">${label} ${d==='asc'?'↑':'↓'}</span>`;
+}
+function dateSortFn(tab, field){
+  const d = _logsDateSort[tab] || 'desc';
+  return (a,b) => d === 'asc' ? (a[field]||'').localeCompare(b[field]||'') : (b[field]||'').localeCompare(a[field]||'');
+}
+
+function renderCurrentLogs(q){
+  if(!_logsTab) return;
+  const renders = { notes:renderLogsNotes, tasks:renderLogsTasks, goals:renderLogsGoals, habits:renderLogsHabits, meetings:renderLogsMeetings };
+  if(renders[_logsTab]) renders[_logsTab](q || '');
+}
+
+function logsHtml(html){ const el = $('logs-content'); if(el) el.innerHTML = html; }
+function logsCount(txt){ const el = $('logs-count'); if(el) el.textContent = txt; }
+function dbDelBtn(fn, id){
+  return `<button onclick="${fn}('${id}')" style="background:transparent;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:3px 7px;border-radius:3px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>`;
+}
+function dbTable(headers, rows){
+  const ths = headers.map(h => `<th>${h}</th>`).join('');
+  const trs = rows.length ? rows.join('') : `<tr><td colspan="${headers.length}" class="db-empty">No records yet.</td></tr>`;
+  return `<table class="db-table"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+function dbRow(cells, onclick){ return `<tr${onclick?` onclick="${onclick}" style="cursor:pointer"`:''}>${cells.map(c=>`<td>${c}</td>`).join('')}</tr>`; }
+
+// ── Notes (Capture) Logs ──
+const NOTE_LOG_STATUSES = [
+  {v:'open', l:'Open', col:'#fde047', bg:'rgba(253,224,71,.12)'},
+  {v:'backlog', l:'Backlog', col:'#a78bfa', bg:'rgba(167,139,250,.12)'},
+  {v:'routed', l:'Routed', col:'#4ade80', bg:'rgba(74,222,128,.12)'},
+  {v:'rejected', l:'Rejected', col:'#f87171', bg:'rgba(248,113,113,.12)'},
+];
+function viewLogNote(id){
+  const n = load(NK.notes).find(x => x.id === id); if(!n) return;
+  const biz = getBusinesses().find(b => b.id === n.businessId);
+  const el = $('modalOverlay');
+  $('modalTitle').textContent = 'Capture';
+  $('modalBody').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${fmtDateShort(n.created)}</span>
+      ${n.category?`<span class="tag">${esc(n.category)}</span>`:''}
+      ${biz?`<span class="tag" style="color:var(--green)">🏢 ${esc(biz.name)}</span>`:''}
+      ${n.source?`<a href="${esc(n.source)}" target="_blank" rel="noopener" style="font-size:11px;color:#60a5fa">🔗 ${esc(n.source.slice(0,40))}</a>`:''}
+    </div>
+    <div style="font-size:14px;color:var(--text-primary);line-height:1.7;white-space:pre-wrap">${esc(n.text)}</div>`;
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Close</button>`;
+  $('modalOverlay').classList.add('open');
+}
+function restoreLogNote(id){
+  const notes = load(NK.notes);
+  const n = notes.find(x => x.id === id); if(!n) return;
+  n.status = 'open'; n.routedTo = null;
+  save(NK.notes, notes);
+  if(activeTab === 'notes') renderNotes();
+  renderCurrentLogs(($('logs-search')||{value:''}).value);
+}
+function renderLogsNotes(q){
+  const q_ = (q||'').toLowerCase();
+  const all = loadScoped(NK.notes);
+  const chips = [{key:'',l:'All'}, ...NOTE_LOG_STATUSES.map(s=>({key:s.v,l:s.l,col:s.col,bg:s.bg}))];
+  const filterBar = chips.map(c => {
+    const cnt = c.key === '' ? all.length : all.filter(n => n.status === c.key).length;
+    if(cnt === 0 && c.key !== '') return '';
+    const on = _logsNoteStatusFilter === c.key;
+    const border = on ? (c.col ? `color-mix(in srgb,${c.col} 50%,transparent)` : 'var(--accent)') : 'var(--border-md)';
+    const bg = on ? (c.bg || 'rgba(96,165,250,.15)') : 'transparent';
+    const col = on ? (c.col || 'var(--accent)') : 'var(--text-muted)';
+    return `<button onclick="_logsNoteStatusFilter='${c.key}';renderCurrentLogs($('logs-search').value)" style="padding:4px 12px;border-radius:99px;border:1px solid ${border};background:${bg};color:${col};cursor:pointer;font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;transition:all .15s">${c.l}<span style="opacity:.65;font-size:9px;margin-left:3px">${cnt}</span></button>`;
+  }).join('');
+  let filtered = _logsNoteStatusFilter ? all.filter(n => n.status === _logsNoteStatusFilter) : all;
+  filtered = filtered.filter(n => !q_ || n.text.toLowerCase().includes(q_) || (n.category||'').toLowerCase().includes(q_));
+  logsCount(filtered.length + ' notes');
+  const rows = filtered.sort(dateSortFn('notes','created')).map(n => {
+    const ns = NOTE_LOG_STATUSES.find(s => s.v === n.status) || NOTE_LOG_STATUSES[0];
+    const badge = `<span style="font-size:9px;font-weight:700;padding:2px 9px;border-radius:99px;border:1px solid color-mix(in srgb,${ns.col} 30%,transparent);background:${ns.bg};color:${ns.col};font-family:'Outfit',sans-serif;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap">${ns.l}</span>`;
+    return dbRow([
+      `<span style="max-width:280px;display:block;color:var(--text-primary)">${esc(n.text.slice(0,100))}${n.text.length>100?'…':''}</span>`,
+      n.category ? `<span class="tag">${esc(n.category)}</span>` : '—',
+      badge,
+      `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap;min-width:100px">${fmtDateShort(n.created)}</div>`,
+      n.status !== 'open' ? `<button onclick="event.stopPropagation();restoreLogNote('${n.id}')" style="display:inline-flex;align-items:center;gap:4px;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.25);color:#60a5fa;border-radius:var(--r-xs);cursor:pointer;font-size:10px;font-weight:600;padding:2px 8px;font-family:'Outfit',sans-serif">↩ Reopen</button>` : '—',
+      `<span onclick="event.stopPropagation()">${dbDelBtn('deleteNote', n.id)}</span>`
+    ], `viewLogNote('${n.id}')`);
+  });
+  logsHtml(`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">${filterBar}</div>` + dbTable(['Content','Category','Status',sortHdr('notes','Date'),'',''], rows));
+}
+
+// ── Tasks Logs ──
+function renderLogsTasks(q){
+  const q_ = (q||'').toLowerCase();
+  const all = allDeptTasksScoped().filter(t => !q_ || t.title.toLowerCase().includes(q_));
+  logsCount(all.length + ' tasks');
+  const dir = _logsDateSort['tasks'] || 'asc';
+  const rows = [...all].sort((a,b) => (a.done - b.done) || (dir==='asc' ? (a.due||'').localeCompare(b.due||'') : (b.due||'').localeCompare(a.due||''))).map(t => {
+    const d = deptOf(t._dept);
+    return dbRow([
+      `<span style="${t.done?'text-decoration:line-through;color:var(--text-muted)':'color:var(--text-primary);font-weight:500'}">${esc(t.title)}</span>`,
+      `<span class="tag" style="color:${d.color}">${d.icon} ${d.label}</span>`,
+      t.due ? `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap;min-width:100px">${fmtDateShort(t.due)}</div>` : '—',
+      t.done
+        ? `<button onclick="toggleTask('${t._dept}','${t.id}');renderCurrentLogs($('logs-search').value)" style="display:inline-flex;align-items:center;gap:4px;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.25);color:#60a5fa;border-radius:var(--r-xs);cursor:pointer;font-size:10px;font-weight:600;padding:2px 8px;font-family:'Outfit',sans-serif">↩ Restore</button>`
+        : `<span class="tag">Open</span>`,
+      `<button onclick="editTask('${t._dept}','${t.id}')" style="background:transparent;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:3px 7px;border-radius:3px" onmouseover="this.style.color='var(--t-tasks)'" onmouseout="this.style.color='var(--text-muted)'">✏️</button>${dbDelBtn('_deleteTaskFromLogs_'+t._dept, t.id)}`
+    ]);
+  });
+  logsHtml(dbTable(['Title','Department',sortHdr('tasks','Due'),'Status',''], rows));
+}
+// dbDelBtn only takes a function name + id, but deleteTask needs (dept,id) — wrap per-dept.
+DEPTS.forEach(d => { window['_deleteTaskFromLogs_'+d.key] = (id) => { deleteTask(d.key, id); renderCurrentLogs(($('logs-search')||{value:''}).value); }; });
+
+// ── Goals Logs ──
+function renderLogsGoals(q){
+  const q_ = (q||'').toLowerCase();
+  const all = loadScoped(NK.goals).filter(g => !q_ || g.title.toLowerCase().includes(q_) || (g.cat||'').toLowerCase().includes(q_));
+  logsCount(all.length + ' goals');
+  const rows = [...all].sort(dateSortFn('goals','deadline')).map(g => dbRow([
+    `<strong style="color:${safeColor(g.color)||'var(--t-goals)'}">${esc(g.title)}</strong>`,
+    esc(g.cat || '—'),
+    `<div style="display:flex;align-items:center;gap:8px">
+      <div style="width:80px;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;flex-shrink:0"><div style="height:100%;background:${safeColor(g.color)||'var(--t-goals)'};width:${g.progress||0}%"></div></div>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${safeColor(g.color)||'var(--t-goals)'};font-weight:700">${g.progress||0}%</span>
+    </div>`,
+    g.deadline ? `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap;min-width:100px">${fmtDateShort(g.deadline)}</div>` : '—',
+    g.milestones && g.milestones.length ? `<span style="font-family:'JetBrains Mono',monospace;font-size:11px">${g.milestones.filter(m=>m.done).length}/${g.milestones.length}</span>` : '—',
+    `<button onclick="openGoalModal('${g.id}')" style="background:transparent;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:3px 7px;border-radius:3px" onmouseover="this.style.color='var(--t-goals)'" onmouseout="this.style.color='var(--text-muted)'">✏️</button>${dbDelBtn('deleteGoal', g.id)}`
+  ]));
+  logsHtml(dbTable(['Title','Category','Progress',sortHdr('goals','Deadline'),'Milestones',''], rows));
+}
+
+// ── Meetings Logs ──
+function renderLogsMeetings(q){
+  const q_ = (q||'').toLowerCase();
+  const all = loadScoped(NK.meetings).filter(m => !q_ || m.title.toLowerCase().includes(q_) || (m.attendees||'').toLowerCase().includes(q_) || (m.notes||'').toLowerCase().includes(q_));
+  logsCount(all.length + ' meetings');
+  const dir = _logsDateSort['meetings'] || 'desc';
+  const rows = [...all].sort((a,b) => dir==='desc' ? (b.date+(b.time||'')).localeCompare(a.date+(a.time||'')) : (a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).map(m => {
+    const oc = OUTCOME_OPTS.find(o => o.v === m.outcome);
+    return dbRow([
+      `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap;min-width:100px">${fmtDateShort(m.date)||'—'}</div>`,
+      `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap;min-width:70px">${m.time?fmtTime(m.time):'—'}</div>`,
+      `<strong style="color:var(--text-primary)${m.done?';text-decoration:line-through;opacity:.6':''}">${esc(m.title)}</strong>`,
+      m.dept ? `<span class="tag" style="color:${deptOf(m.dept).color}">${deptOf(m.dept).icon} ${deptOf(m.dept).label}</span>` : '—',
+      esc(m.attendees || '—'),
+      oc ? `<span class="tag" style="color:${oc.color}">${oc.l}</span>` : '—',
+      `<span onclick="event.stopPropagation()"><button onclick="openMeetingModal('${m.id}')" style="background:transparent;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:3px 7px;border-radius:3px" onmouseover="this.style.color='var(--t-meetings)'" onmouseout="this.style.color='var(--text-muted)'">✏️</button>${dbDelBtn('deleteMeeting', m.id)}</span>`
+    ]);
+  });
+  logsHtml(dbTable([sortHdr('meetings','Date'),'Time','Title','Dept','Attendees','Outcome',''], rows));
+}
+
+// ── Habits Logs ──
+function renderLogsHabits(q){
+  const q_ = (q||'').toLowerCase();
+  const habits = load(NK.habits).filter(h => !q_ || h.name.toLowerCase().includes(q_));
+  const log = load(NK.habitLog);
+  logsCount(habits.length + ' habits');
+  const rows = habits.map(h => {
+    const total = log.filter(e => e.habitId === h.id).length;
+    return dbRow([
+      `<span style="font-size:15px">${h.icon||'⭐'}</span>`,
+      `<span style="color:var(--text-primary);font-weight:500">${esc(h.name)}</span>`,
+      `<span style="font-family:'JetBrains Mono',monospace;font-size:11px">${total} logged</span>`,
+      `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--yellow)">${calcStreak(h.id, log)}🔥 streak</span>`,
+      dbDelBtn('deleteHabit', h.id)
+    ]);
+  });
+  logsHtml(dbTable(['','Habit','Total','Streak',''], rows));
 }
 
 function init(){
