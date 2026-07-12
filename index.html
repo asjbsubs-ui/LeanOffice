@@ -388,7 +388,7 @@ const NAV_GROUPS = [
 function navGroupTabs(key){ return key === 'departments' ? DEPTS : NAV_STATIC.filter(t => t.group === key); }
 
 // Single-collection localStorage keys (not per-department)
-const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews', businesses:'lo_businesses', library:'lo_library', directory:'lo_directory' };
+const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews', businesses:'lo_businesses', library:'lo_library', directory:'lo_directory', projects:'lo_projects' };
 const LIBRARY_CATEGORIES = ['SOPs', 'Playbooks', 'Market', 'Tools', 'General'];
 
 let activeTab = 'home';
@@ -409,7 +409,7 @@ function save(k, v){
 // loadScoped(). Habits and the Directory (Phase 7) stay global.
 // ---------------------------------------------------------------
 const BIZ_COLORS = ['#6366f1','#f472b6','#60a5fa','#34d399','#f59e0b','#22d3ee','#4ade80','#fb923c'];
-const SCOPED_KEYS = [...DEPTS.map(d => LOK[d.key]), NK.notes, NK.goals, NK.meetings, NK.growth, NK.reviews];
+const SCOPED_KEYS = [...DEPTS.map(d => LOK[d.key]), NK.notes, NK.goals, NK.meetings, NK.growth, NK.reviews, NK.projects];
 const SCHEMA_KEY = '_lo_schemaVersion';
 const ACTIVE_BIZ_KEY = '_lo_activeBusiness';
 
@@ -530,12 +530,14 @@ const EIM_Q = [
 ];
 
 function taskRow(dept, t){
+  const proj = t.projectId ? loadScoped(NK.projects).find(p => p.id === t.projectId) : null;
   return `
     <div class="matrix-task ${t.done?'done':''}">
       <div class="check-box" onclick="toggleTask('${dept}','${t.id}')">${t.done?'✓':''}</div>
       <div style="flex:1;min-width:0">
         <div class="matrix-task-title">${esc(t.title)}</div>
         ${t.due?`<div style="font-size:10px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">📅 ${fmtDateShort(t.due)}</div>`:''}
+        ${proj?`<span class="tag">📁 ${esc(proj.name)}</span>`:''}
         ${t.notes?`<div class="matrix-task-notes">${esc(t.notes)}</div>`:''}
       </div>
       <button class="delete-btn" onclick="editTask('${dept}','${t.id}')" title="Edit">✏️</button>
@@ -612,6 +614,7 @@ function deleteTask(dept, id){
 // ---------------------------------------------------------------
 let _eimUrgency = null, _eimImportance = null;
 let _editingTask = null, _editingGoal = null, _editingHabit = null, _editingMeeting = null, _outcomeMeetingId = null;
+let _editingProject = null, _newProjectGoalId = null;
 let currentSaveFn = null;
 
 function setEim(dim, val){
@@ -650,7 +653,11 @@ function taskModalHtml(){
         <button type="button" class="eim-chip" id="eim-important" onclick="setEim('importance','important')">⭐ Important</button>
         <button type="button" class="eim-chip" id="eim-not-important" onclick="setEim('importance','not-important')">○ Not Important</button>
       </div>
-    </div>`;
+    </div>
+    <div class="field"><label>Project (optional)</label><select class="select" id="lo-task-project">
+      <option value="">No project</option>
+      ${loadScoped(NK.projects).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+    </select></div>`;
 }
 
 function openTaskModal(dept){
@@ -682,6 +689,7 @@ function editTask(dept, id){
   $('lo-task-notes').value = t.notes || '';
   if(t.urgency) setEim('urgency', t.urgency);
   if(t.importance) setEim('importance', t.importance);
+  if($('lo-task-project')) $('lo-task-project').value = t.projectId || '';
   $('modalOverlay').classList.add('open');
   setTimeout(() => { const f=$('lo-task-title'); if(f) f.focus(); }, 100);
 }
@@ -697,6 +705,7 @@ function saveTaskForm(){
     notes: $('lo-task-notes').value.trim(),
     urgency: _eimUrgency || null,
     importance: _eimImportance || null,
+    projectId: ($('lo-task-project') || {value:''}).value || null,
   };
   if(id){
     const i = tasks.findIndex(t => t.id === id);
@@ -716,6 +725,7 @@ function closeModal(){
   currentSaveFn = null;
   _editingTask = null; _editingGoal = null; _editingHabit = null; _editingMeeting = null; _outcomeMeetingId = null;
   _editingContact = null; _editingLibrary = null; _mtgSelectedContacts = [];
+  _editingProject = null; _newProjectGoalId = null;
   resetEim();
 }
 function closeModalOutside(e){ if(e.target === $('modalOverlay')) closeModal(); }
@@ -1206,7 +1216,7 @@ function saveNoteForm(){
 // Departments stay the planning lens (Eisenhower); same underlying
 // data, writes always go back to the source department collection.
 // ---------------------------------------------------------------
-const TASKS_LENSES = [{key:'today', label:'Today'}, {key:'all', label:'All Open'}];
+const TASKS_LENSES = [{key:'today', label:'Today'}, {key:'all', label:'All Open'}, {key:'projects', label:'Projects'}];
 let _tasksLens = 'today';
 let _tasksGroupCollapsed = {};
 
@@ -1219,18 +1229,27 @@ function tasksTabHtml(){
           <div class="ph-title" style="color:var(--t-tasks)">✅ Tasks</div>
           <div class="ph-sub">Everything due, across every department — the doing lens.</div>
         </div>
-        <div class="ph-actions"><button class="logs-btn" onclick="openLogs('tasks')">📋 Logs</button></div>
+        <div class="ph-actions">
+          <button class="logs-btn" onclick="openLogs('tasks')">📋 Logs</button>
+          <button class="btn btn-primary" id="tasks-new-project-btn" style="display:none;background:var(--t-tasks);color:#000" onclick="_editingProject=null;_newProjectGoalId=null;openProjectModal()">+ New Project</button>
+        </div>
       </div>
       <div class="sub-tab-bar" id="tasks-lenses"></div>
       <div id="tasks-list"></div>
     </div>`;
 }
 
-function switchTasksLens(k){ _tasksLens = k; renderTasks(); }
+function switchTasksLens(k){
+  _tasksLens = k;
+  const btn = $('tasks-new-project-btn');
+  if(btn) btn.style.display = k === 'projects' ? '' : 'none';
+  renderTasks();
+}
 function toggleTasksGroup(dept){ _tasksGroupCollapsed[dept] = !_tasksGroupCollapsed[dept]; renderTasks(); }
 
 function taskRowTasks(t){
   const d = deptOf(t._dept);
+  const proj = t.projectId ? loadScoped(NK.projects).find(p => p.id === t.projectId) : null;
   return `
     <div class="list-row">
       <div class="check-box" onclick="toggleTask('${t._dept}','${t.id}')">${t.done?'✓':''}</div>
@@ -1238,6 +1257,7 @@ function taskRowTasks(t){
         <div class="matrix-task-title">${esc(t.title)}</div>
         <div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <span class="tag" style="color:${d.color}">${d.icon} ${d.label}</span>
+          ${proj?`<span class="tag">📁 ${esc(proj.name)}</span>`:''}
           ${t.due?`<span class="matrix-task-notes">📅 ${fmtDateShort(t.due)}</span>`:''}
         </div>
       </div>
@@ -1249,6 +1269,7 @@ function renderTasks(){
   const lensEl = $('tasks-lenses');
   if(!lensEl) return;
   lensEl.innerHTML = TASKS_LENSES.map(l => `<button type="button" class="sub-tab-btn ${l.key===_tasksLens?'on':''}" onclick="switchTasksLens('${l.key}')">${l.label}</button>`).join('');
+  if(_tasksLens === 'projects'){ renderTasksProjects(); return; }
   const all = allDeptTasksScoped().filter(t => !t.done);
   if(_tasksLens === 'today'){
     const due = all.filter(t => t.due && t.due <= today()).sort((a,b) => a.due < b.due ? -1 : a.due > b.due ? 1 : 0);
@@ -1267,6 +1288,73 @@ function renderTasks(){
       </div>`;
     }).join('');
   }
+}
+
+// ── Projects — bridges Goals and Tasks. A project optionally links to a
+// Goal (progress rollup shown there) and groups tasks from any department
+// (tasks carry their own dept; a project is dept-agnostic). ──
+const PROJECT_STATUSES = ['planned', 'active', 'paused', 'done'];
+const PROJECT_STATUS_LABEL = {planned:'Planned', active:'Active', paused:'Paused', done:'Done'};
+const PROJECT_STATUS_COLOR = {planned:'var(--text-muted)', active:'var(--t-tasks)', paused:'var(--yellow)', done:'var(--green)'};
+let _projectsCollapsed = {};
+function toggleProjectCollapse(id){ _projectsCollapsed[id] = !_projectsCollapsed[id]; renderTasksProjects(); }
+
+function _projTaskRow(t){
+  return `
+    <div class="matrix-task ${t.done?'done':''}">
+      <div class="check-box" onclick="toggleTask('${t._dept}','${t.id}');renderTasksProjects()">${t.done?'✓':''}</div>
+      <div style="flex:1;min-width:0">
+        <div class="matrix-task-title">${esc(t.title)}</div>
+        <div style="margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span class="tag" style="color:${deptOf(t._dept).color}">${deptOf(t._dept).icon} ${deptOf(t._dept).label}</span>
+          ${t.due?`<span class="matrix-task-notes">📅 ${fmtDateShort(t.due)}</span>`:''}
+        </div>
+      </div>
+      <button class="delete-btn" onclick="editTask('${t._dept}','${t.id}')" title="Edit">✏️</button>
+      <button class="delete-btn" onclick="deleteTask('${t._dept}','${t.id}');renderTasksProjects()" title="Delete">✕</button>
+    </div>`;
+}
+
+function renderTasksProjects(){
+  const el = $('tasks-list');
+  if(!el) return;
+  const tasks = allDeptTasksScoped();
+  const projects = loadScoped(NK.projects);
+  const byProject = {}; projects.forEach(p => byProject[p.id] = []);
+  const noProject = [];
+  tasks.forEach(t => { if(t.projectId && byProject[t.projectId]) byProject[t.projectId].push(t); else noProject.push(t); });
+
+  const groupCard = (id, label, statusHtml, list) => {
+    const collapsed = !!_projectsCollapsed[id];
+    const doneCt = list.filter(t => t.done).length;
+    return `<div class="card" style="margin-bottom:12px">
+      <div class="card-header" style="cursor:pointer" onclick="toggleProjectCollapse('${id}')">
+        <span style="display:flex;align-items:center;gap:8px;min-width:0">
+          <span class="card-title" style="color:var(--t-tasks);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</span>
+          ${statusHtml}
+        </span>
+        <span style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-muted)">${doneCt}/${list.length} done</span>
+          ${id!=='__none__'?`<button class="delete-btn" onclick="event.stopPropagation();openProjectModal('${id}')" title="Edit">✏️</button>
+          <button class="delete-btn" onclick="event.stopPropagation();deleteProject('${id}')" title="Delete">✕</button>`:''}
+          <span style="color:var(--text-muted);font-size:11px">${collapsed?'▸':'▾'}</span>
+        </span>
+      </div>
+      ${collapsed ? '' : `<div class="card-body tight">${list.length ? list.map(_projTaskRow).join('') : '<div class="empty-state">No tasks yet</div>'}</div>`}
+    </div>`;
+  };
+
+  let html = projects.map(p => {
+    const statusHtml = `<span class="tag" style="color:${PROJECT_STATUS_COLOR[p.status]}">${PROJECT_STATUS_LABEL[p.status]||p.status}</span>`;
+    return groupCard(p.id, p.name, statusHtml, byProject[p.id] || []);
+  }).join('');
+  html += groupCard('__none__', 'No project', '', noProject);
+
+  if(!projects.length && !noProject.length){
+    el.innerHTML = `<div class="empty-state">No projects yet — click "+ New Project" to start grouping tasks.</div>`;
+    return;
+  }
+  el.innerHTML = html;
 }
 
 // ---------------------------------------------------------------
@@ -1322,6 +1410,7 @@ function renderGoals(){
           <div style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;${m.done?'color:var(--text-muted);text-decoration:line-through':''}" onclick="toggleMilestone('${g.id}',${i})">
             <div class="check-box" style="${m.done?`background:${color};border-color:${color}`:''}">${m.done?'✓':''}</div>${esc(m.text)}
           </div>`).join('')}</div>` : ''}
+        ${_goalProjectsHtml(g.id)}
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button class="delete-btn" onclick="openGoalModal('${g.id}')">✏️ Edit</button>
           <button class="delete-btn" onclick="deleteGoal('${g.id}')">✕ Delete</button>
@@ -1341,8 +1430,130 @@ function toggleMilestone(id, i){
 }
 function deleteGoal(id){
   save(NK.goals, load(NK.goals).filter(g => g.id !== id));
+  const projects = load(NK.projects);
+  let changed = false;
+  projects.forEach(p => { if(p.goalId === id){ p.goalId = null; changed = true; } });
+  if(changed) save(NK.projects, projects);
   renderGoals();
   if(activeTab === 'home') renderHome();
+}
+
+// ── Goal <-> Project linking ──
+function newProjectForGoal(goalId){ _editingProject = null; _newProjectGoalId = goalId; openProjectModal(); }
+function linkExistingProjectToGoal(goalId){
+  const sel = $('goal-link-proj-' + goalId);
+  if(!sel || !sel.value) return;
+  const projects = load(NK.projects);
+  const p = projects.find(x => x.id === sel.value);
+  if(!p) return;
+  p.goalId = goalId;
+  save(NK.projects, projects);
+  renderGoals();
+}
+function unlinkProjectFromGoal(projectId){
+  const projects = load(NK.projects);
+  const p = projects.find(x => x.id === projectId);
+  if(!p) return;
+  p.goalId = null;
+  save(NK.projects, projects);
+  renderGoals();
+}
+function _goalProjectsHtml(goalId){
+  const allProjects = loadScoped(NK.projects);
+  const linked = allProjects.filter(p => p.goalId === goalId);
+  const unlinked = allProjects.filter(p => p.goalId !== goalId);
+  const tasks = allDeptTasksScoped();
+  const rows = linked.map(p => {
+    const list = tasks.filter(t => t.projectId === p.id);
+    const done = list.filter(t => t.done).length;
+    const pct = list.length ? Math.round(done / list.length * 100) : 0;
+    return `<div style="margin-bottom:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;margin-bottom:3px">
+        <span style="color:var(--text-secondary)">${esc(p.name)}</span>
+        <span style="display:flex;align-items:center;gap:6px">
+          <span style="color:var(--text-muted);font-family:'JetBrains Mono',monospace">${done}/${list.length}</span>
+          <button class="delete-btn" style="font-size:11px;padding:0" onclick="unlinkProjectFromGoal('${p.id}')" title="Unlink">✕</button>
+        </span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${PROJECT_STATUS_COLOR[p.status]||'var(--t-tasks)'}"></div></div>
+    </div>`;
+  }).join('');
+  const linkExisting = unlinked.length ? `
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <select class="select" id="goal-link-proj-${goalId}" style="font-size:11px;flex:1;padding:4px 8px;height:auto">
+        ${unlinked.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+      </select>
+      <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px" onclick="linkExistingProjectToGoal('${goalId}')">Link</button>
+    </div>` : '';
+  return `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted)">📁 Projects</span>
+      <button class="btn btn-ghost" style="font-size:10px;padding:2px 8px" onclick="newProjectForGoal('${goalId}')">+ New</button>
+    </div>
+    ${rows || '<div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">No projects linked yet.</div>'}
+    ${linkExisting}
+  </div>`;
+}
+
+// ── Project modal (add/edit) ──
+function projectModalHtml(p){
+  const goals = loadScoped(NK.goals);
+  const preselectGoal = p ? p.goalId : _newProjectGoalId;
+  return `
+    <div class="field"><label>Name *</label><input class="input" id="lo-proj-name" placeholder="Project name" value="${p?esc(p.name):''}"></div>
+    <div class="field-row">
+      <div class="field"><label>Status</label><select class="select" id="lo-proj-status">
+        ${PROJECT_STATUSES.map(s => `<option value="${s}"${(p?p.status===s:s==='planned')?' selected':''}>${PROJECT_STATUS_LABEL[s]}</option>`).join('')}
+      </select></div>
+      <div class="field"><label>Goal (optional)</label><select class="select" id="lo-proj-goal">
+        <option value="">No goal</option>
+        ${goals.map(g => `<option value="${g.id}"${preselectGoal===g.id?' selected':''}>${esc(g.title)}</option>`).join('')}
+      </select></div>
+    </div>`;
+}
+function openProjectModal(id){
+  const p = id ? load(NK.projects).find(x => x.id === id) : null;
+  _editingProject = id || null;
+  $('modalTitle').textContent = id ? 'Edit Project' : 'New Project';
+  $('modalBody').innerHTML = projectModalHtml(p);
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
+  currentSaveFn = saveProjectForm;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-tasks)');
+  $('modalOverlay').classList.add('open');
+  setTimeout(() => { const f=$('lo-proj-name'); if(f) f.focus(); }, 100);
+}
+function saveProjectForm(){
+  const name = $('lo-proj-name').value.trim();
+  if(!name){ alert('Project name required'); return; }
+  const fields = {
+    name,
+    status: $('lo-proj-status').value || 'planned',
+    goalId: $('lo-proj-goal').value || null,
+  };
+  const projects = load(NK.projects);
+  if(_editingProject){
+    const i = projects.findIndex(p => p.id === _editingProject);
+    if(i >= 0) projects[i] = {...projects[i], ...fields};
+  } else {
+    projects.push({id: uid(), businessId: activeBusinessId, ...fields, createdAt: today()});
+  }
+  _newProjectGoalId = null;
+  save(NK.projects, projects);
+  closeModal();
+  if(activeTab === 'tasks') renderTasks();
+  if(activeTab === 'goals') renderGoals();
+}
+function deleteProject(id){
+  save(NK.projects, load(NK.projects).filter(p => p.id !== id));
+  // Orphaned tasks fall back to "No project" across every department, not just one.
+  DEPTS.forEach(d => {
+    const tasks = load(LOK[d.key]);
+    let changed = false;
+    tasks.forEach(t => { if(t.projectId === id){ t.projectId = null; changed = true; } });
+    if(changed) save(LOK[d.key], tasks);
+  });
+  if(activeTab === 'tasks') renderTasks();
+  if(activeTab === 'goals') renderGoals();
 }
 
 function goalModalHtml(g){
