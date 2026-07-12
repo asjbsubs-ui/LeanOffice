@@ -2440,15 +2440,35 @@ function libraryTabHtml(){
 
 function libraryRow(it){
   return `
-    <div class="list-row">
+    <div class="list-row" style="cursor:pointer" onclick="viewLibraryItem('${it.id}')">
       <div style="flex:1;min-width:0">
         <div class="matrix-task-title">${esc(it.title)}</div>
         ${it.summary?`<div class="matrix-task-notes" style="margin-top:3px">${esc(it.summary)}</div>`:it.content?`<div class="matrix-task-notes" style="margin-top:3px">${esc(it.content.slice(0,140))}</div>`:''}
-        ${it.url?`<a href="${esc(it.url)}" target="_blank" rel="noopener" class="tag" style="margin-top:5px;display:inline-block;text-decoration:none">🔗 Link</a>`:''}
+        ${it.url?`<a href="${esc(it.url)}" target="_blank" rel="noopener" class="tag" style="margin-top:5px;display:inline-block;text-decoration:none" onclick="event.stopPropagation()">🔗 Link</a>`:''}
       </div>
-      <button class="delete-btn" onclick="openLibraryModal('${it.id}')" title="Edit">✏️</button>
-      <button class="delete-btn" onclick="deleteLibraryItem('${it.id}')" title="Delete">✕</button>
+      <span onclick="event.stopPropagation()">
+        <button class="delete-btn" onclick="openLibraryModal('${it.id}')" title="Edit">✏️</button>
+        <button class="delete-btn" onclick="deleteLibraryItem('${it.id}')" title="Delete">✕</button>
+      </span>
     </div>`;
+}
+
+function viewLibraryItem(id){
+  const it = load(NK.library).find(x => x.id === id);
+  if(!it) return;
+  $('modalTitle').textContent = it.category || 'Library';
+  $('modalBody').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <span class="tag">${esc(it.category || 'General')}</span>
+      ${it.createdAt?`<span style="font-size:13px;font-weight:600;color:var(--text-muted)">${fmtDateShort(it.createdAt.slice(0,10))}</span>`:''}
+      ${it.url?`<a href="${esc(it.url)}" target="_blank" rel="noopener" style="font-size:11px;color:#60a5fa">🔗 ${esc(it.url.slice(0,50))}</a>`:''}
+    </div>
+    <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:10px">${esc(it.title)}</div>
+    ${it.summary?`<div style="font-size:13px;color:var(--text-secondary);font-style:italic;margin-bottom:14px">${esc(it.summary)}</div>`:''}
+    <div style="font-size:14px;color:var(--text-primary);line-height:1.7;white-space:pre-wrap">${esc(it.content || '')}</div>`;
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Close</button><button class="btn btn-primary" style="background:var(--t-library);color:#000" onclick="openLibraryModal('${it.id}')">✏️ Edit</button>`;
+  document.documentElement.style.setProperty('--tab-color', 'var(--t-library)');
+  $('modalOverlay').classList.add('open');
 }
 
 function renderLibrary(){
