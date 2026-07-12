@@ -703,6 +703,9 @@ function recurLabel(t){
 function taskModalHtml(){
   return `
     <div class="field"><label>Task *</label><input class="input" id="lo-task-title" placeholder="What needs to get done?"></div>
+    <div class="field"><label>Department</label><select class="select" id="lo-task-dept" onchange="document.documentElement.style.setProperty('--tab-color', deptOf(this.value).color)">
+      ${DEPTS.map(d => `<option value="${d.key}">${d.icon} ${d.label}</option>`).join('')}
+    </select></div>
     <div class="field-row">
       <div class="field"><label>Due Date</label><input class="input" id="lo-task-due" type="date"></div>
       <div class="field"><label>Repeat</label><select class="select" id="lo-task-recur" onchange="toggleRecurDays(this.value)">
@@ -751,11 +754,12 @@ function openTaskModal(dept){
   const d = deptOf(dept);
   _editingTask = {dept, id:null};
   resetEim();
-  $('modalTitle').textContent = 'New Task — ' + d.label;
+  $('modalTitle').textContent = 'New Task';
   $('modalBody').innerHTML = taskModalHtml();
   $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
   currentSaveFn = saveTaskForm;
   document.documentElement.style.setProperty('--tab-color', d.color);
+  $('lo-task-dept').value = dept;
   $('modalOverlay').classList.add('open');
   setTimeout(() => { const f=$('lo-task-title'); if(f) f.focus(); }, 100);
 }
@@ -766,11 +770,12 @@ function editTask(dept, id){
   const d = deptOf(dept);
   _editingTask = {dept, id};
   resetEim();
-  $('modalTitle').textContent = 'Edit Task — ' + d.label;
+  $('modalTitle').textContent = 'Edit Task';
   $('modalBody').innerHTML = taskModalHtml();
   $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="currentSaveFn()">Save</button>`;
   currentSaveFn = saveTaskForm;
   document.documentElement.style.setProperty('--tab-color', d.color);
+  $('lo-task-dept').value = dept;
   $('lo-task-title').value = t.title || '';
   $('lo-task-due').value = t.due || '';
   $('lo-task-notes').value = t.notes || '';
@@ -791,7 +796,7 @@ function saveTaskForm(){
   const title = $('lo-task-title').value.trim();
   if(!title){ alert('Task title required'); return; }
   const {dept, id} = _editingTask;
-  const tasks = load(LOK[dept]);
+  const newDept = ($('lo-task-dept') || {value: dept}).value || dept;
   const fields = {
     title,
     due: $('lo-task-due').value || '',
@@ -810,14 +815,30 @@ function saveTaskForm(){
     })(),
   };
   if(id){
-    const i = tasks.findIndex(t => t.id === id);
-    if(i >= 0) tasks[i] = {...tasks[i], ...fields};
+    const sourceTasks = load(LOK[dept]);
+    const i = sourceTasks.findIndex(t => t.id === id);
+    if(i < 0) return;
+    const updated = {...sourceTasks[i], ...fields};
+    if(newDept !== dept){
+      // Moving departments means relocating between per-department
+      // collections, not just updating a field.
+      sourceTasks.splice(i, 1);
+      save(LOK[dept], sourceTasks);
+      const destTasks = load(LOK[newDept]);
+      destTasks.unshift(updated);
+      save(LOK[newDept], destTasks);
+    } else {
+      sourceTasks[i] = updated;
+      save(LOK[dept], sourceTasks);
+    }
   } else {
-    tasks.unshift({id: uid(), businessId: activeBusinessId, ...fields, done:false, created: today()});
+    const destTasks = load(LOK[newDept]);
+    destTasks.unshift({id: uid(), businessId: activeBusinessId, ...fields, done:false, created: today()});
+    save(LOK[newDept], destTasks);
   }
-  save(LOK[dept], tasks);
   closeModal();
   renderMatrix(dept);
+  if(newDept !== dept) renderMatrix(newDept);
   if(activeTab === 'tasks') renderTasks();
   if(activeTab === 'home') renderHome();
 }
