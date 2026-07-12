@@ -3132,7 +3132,11 @@ async function _sbDoPull(){
       });
       localStorage.setItem(k, JSON.stringify([...byId.values()]));
     });
-    const maxTs = data.reduce((m,r) => r.updated_at > m ? r.updated_at : m, '');
+    // Only advance the watermark past rows actually applied above -- a row
+    // whose collection isn't in SYNC_COLS (e.g. added to the schema after
+    // this device's last sync) must stay fetchable on the next pull instead
+    // of being silently skipped forever once maxTs passes its updated_at.
+    const maxTs = data.reduce((m,r) => (SYNC_COLS.includes(r.collection) && r.updated_at > m) ? r.updated_at : m, '');
     if(maxTs) localStorage.setItem(_SYNC_TS_KEY, maxTs);
   } else if(!lastSync){
     localStorage.setItem(_SYNC_TS_KEY, new Date().toISOString());
