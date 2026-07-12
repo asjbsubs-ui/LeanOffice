@@ -449,9 +449,26 @@ function migrateNoteStatuses(){
   setSchemaVersion(2);
 }
 
+// Notes captured with a category typed via "+ Custom" (or migrated from
+// LeanFlow before these were added to NOTE_CATS) ended up as inconsistent
+// plain-text variants of categories that now have an official emoji-
+// prefixed entry -- showing as duplicate chips in the category filter.
+const CATEGORY_ALIASES = { 'App development': '💻 App Development', 'App Development': '💻 App Development', 'Bug': '🐛 Bug' };
+function migrateNoteCategories(){
+  if(getSchemaVersion() >= 3) return;
+  const notes = load(NK.notes);
+  let changed = false;
+  notes.forEach(n => {
+    if(CATEGORY_ALIASES[n.category]){ n.category = CATEGORY_ALIASES[n.category]; changed = true; }
+  });
+  if(changed) save(NK.notes, notes);
+  setSchemaVersion(3);
+}
+
 function runMigrations(){
   migrateToMultiBusiness();
   migrateNoteStatuses();
+  migrateNoteCategories();
 }
 
 // Two devices that each run migrateToMultiBusiness() offline before ever
@@ -1054,7 +1071,7 @@ function renderHomeHabits(){
 // ---------------------------------------------------------------
 // Capture tab (notes)
 // ---------------------------------------------------------------
-const NOTE_CATS = ['💡 Business Idea','📣 Marketing Idea','💼 Sales Idea','⚙️ Process Improvement','💰 Finance Note','🔗 Resource','🧠 Thought','⚡ Quick Thought'];
+const NOTE_CATS = ['💡 Business Idea','📣 Marketing Idea','💼 Sales Idea','⚙️ Process Improvement','🐛 Bug','💻 App Development','💰 Finance Note','🔗 Resource','🧠 Thought','⚡ Quick Thought'];
 let _noteCat = NOTE_CATS[0], _noteDept = null, _noteFilterCat = null, _noteStatusFilter = 'open';
 
 function notesTabHtml(){
