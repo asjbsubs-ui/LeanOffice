@@ -538,6 +538,7 @@ function taskRow(dept, t){
         <div class="matrix-task-title">${esc(t.title)}</div>
         ${t.due?`<div style="font-size:10px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">📅 ${fmtDateShort(t.due)}</div>`:''}
         ${proj?`<span class="tag">📁 ${esc(proj.name)}</span>`:''}
+        ${t.recur?`<span class="tag" style="color:var(--green)">🔁 ${esc(recurLabel(t))}</span>`:''}
         ${t.notes?`<div class="matrix-task-notes">${esc(t.notes)}</div>`:''}
       </div>
       <button class="delete-btn" onclick="editTask('${dept}','${t.id}')" title="Edit">✏️</button>
@@ -597,6 +598,9 @@ function toggleTask(dept, id){
   const t = tasks.find(x => x.id === id);
   if(!t) return;
   t.done = !t.done;
+  if(t.done && t.recur){
+    tasks.unshift({...t, id: uid(), done: false, created: today(), due: nextRecurDue(t.due, t.recur, t.recurDays, t.recurWeekDays)});
+  }
   save(LOK[dept], tasks);
   renderMatrix(dept);
   if(activeTab === 'tasks') renderTasks();
@@ -635,10 +639,90 @@ function resetEim(){
   ['eim-urgent','eim-not-urgent','eim-important','eim-not-important'].forEach(id => { const el=$(id); if(el) el.className='eim-chip'; });
 }
 
+// ---------------------------------------------------------------
+// Task repeat (recurrence) — mirrors LeanFlow's model.
+// ---------------------------------------------------------------
+function toggleRecurDays(v){
+  const monthWrap = $('lo-task-recur-days-wrap');
+  const weekWrap = $('lo-task-recur-weekdays-wrap');
+  if(monthWrap) monthWrap.style.display = v === 'monthly' ? '' : 'none';
+  if(weekWrap) weekWrap.style.display = v === 'weekly' ? '' : 'none';
+}
+function addRecurDay(day){
+  const el = $('lo-task-recur-days');
+  if(!el) return;
+  const existing = el.value.split(',').map(s => s.trim()).filter(Boolean);
+  const str = day.toString();
+  if(!existing.includes(str)) el.value = [...existing, str].join(', ');
+}
+// Negative day markers (-1 = last day, -2 = second-to-last) resolve differently
+// per month depending on how many days it has.
+function resolveRecurDays(year, month, days){
+  const last = new Date(year, month + 1, 0).getDate();
+  return days.map(d => d < 0 ? last + d + 1 : Math.min(d, last)).sort((a,b) => a - b);
+}
+function nextRecurDue(due, recur, recurDays, recurWeekDays){
+  const d = new Date((due || today()) + 'T12:00:00');
+  if(recur === 'daily') d.setDate(d.getDate() + 1);
+  else if(recur === 'weekly'){
+    if(recurWeekDays && recurWeekDays.length){
+      const s = new Date(d); s.setDate(s.getDate() + 1);
+      for(let i = 0; i < 7; i++){ if(recurWeekDays.includes(s.getDay())) return s.toLocaleDateString('sv'); s.setDate(s.getDate() + 1); }
+    }
+    d.setDate(d.getDate() + 7);
+  }
+  else if(recur === 'monthly'){
+    if(recurDays && recurDays.length){
+      const cur = d.getDate(), m = d.getMonth(), y = d.getFullYear();
+      const thisDays = resolveRecurDays(y, m, recurDays);
+      const nextDay = thisDays.find(day => day > cur);
+      if(nextDay){ d.setDate(nextDay); }
+      else{
+        const nm = (m + 1) % 12, ny = m === 11 ? y + 1 : y;
+        const nextDays = resolveRecurDays(ny, nm, recurDays);
+        d.setFullYear(ny); d.setMonth(nm); d.setDate(nextDays[0]);
+      }
+    } else { d.setMonth(d.getMonth() + 1); }
+  }
+  return d.toLocaleDateString('sv');
+}
+function recurLabel(t){
+  if(!t.recur) return '';
+  if(t.recur === 'weekly' && t.recurWeekDays && t.recurWeekDays.length){
+    return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].filter((_,i) => t.recurWeekDays.includes(i)).join(', ');
+  }
+  if(t.recur === 'monthly' && t.recurDays && t.recurDays.length){
+    return 'day ' + t.recurDays.map(d => d === -1 ? 'last' : d === -2 ? '2nd last' : d).join(', ');
+  }
+  return t.recur;
+}
+
 function taskModalHtml(){
   return `
     <div class="field"><label>Task *</label><input class="input" id="lo-task-title" placeholder="What needs to get done?"></div>
-    <div class="field"><label>Due Date</label><input class="input" id="lo-task-due" type="date"></div>
+    <div class="field-row">
+      <div class="field"><label>Due Date</label><input class="input" id="lo-task-due" type="date"></div>
+      <div class="field"><label>Repeat</label><select class="select" id="lo-task-recur" onchange="toggleRecurDays(this.value)">
+        <option value="">None</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select></div>
+    </div>
+    <div class="field" id="lo-task-recur-weekdays-wrap" style="display:none">
+      <label>Repeat on</label>
+      <div class="chip-row" id="lo-task-recur-weekday-chips">
+        ${[['Mon',1],['Tue',2],['Wed',3],['Thu',4],['Fri',5],['Sat',6],['Sun',0]].map(([l,v]) => `<button type="button" class="chip" data-day="${v}" onclick="this.classList.toggle('on')">${l}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field" id="lo-task-recur-days-wrap" style="display:none">
+      <label>On day(s) of month</label>
+      <input class="input" id="lo-task-recur-days" placeholder="e.g. 1, 15, 28" style="font-size:12px">
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button type="button" class="chip" onclick="addRecurDay(-1)">Last day</button>
+        <button type="button" class="chip" onclick="addRecurDay(-2)">2nd last day</button>
+      </div>
+    </div>
     <div class="field"><label>Notes</label><textarea class="input" id="lo-task-notes" placeholder="Optional context"></textarea></div>
     <div class="field">
       <label>Eisenhower — Urgency</label>
@@ -690,6 +774,12 @@ function editTask(dept, id){
   if(t.urgency) setEim('urgency', t.urgency);
   if(t.importance) setEim('importance', t.importance);
   if($('lo-task-project')) $('lo-task-project').value = t.projectId || '';
+  if($('lo-task-recur')) $('lo-task-recur').value = t.recur || '';
+  toggleRecurDays(t.recur || '');
+  if($('lo-task-recur-days')) $('lo-task-recur-days').value = t.recurDays ? t.recurDays.join(', ') : '';
+  document.querySelectorAll('#lo-task-recur-weekday-chips button').forEach(b => {
+    b.classList.toggle('on', (t.recurWeekDays || []).includes(parseInt(b.dataset.day)));
+  });
   $('modalOverlay').classList.add('open');
   setTimeout(() => { const f=$('lo-task-title'); if(f) f.focus(); }, 100);
 }
@@ -706,6 +796,15 @@ function saveTaskForm(){
     urgency: _eimUrgency || null,
     importance: _eimImportance || null,
     projectId: ($('lo-task-project') || {value:''}).value || null,
+    recur: ($('lo-task-recur') || {value:''}).value || null,
+    recurDays: (() => {
+      const raw = ($('lo-task-recur-days') || {value:''}).value;
+      return raw ? raw.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n !== 0 && Math.abs(n) <= 31) : null;
+    })(),
+    recurWeekDays: (() => {
+      const sel = [...document.querySelectorAll('#lo-task-recur-weekday-chips button.on')].map(b => parseInt(b.dataset.day));
+      return sel.length ? sel : null;
+    })(),
   };
   if(id){
     const i = tasks.findIndex(t => t.id === id);
@@ -1267,6 +1366,7 @@ function taskRowTasks(t){
         <div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <span class="tag" style="color:${d.color}">${d.icon} ${d.label}</span>
           ${proj?`<span class="tag">📁 ${esc(proj.name)}</span>`:''}
+          ${t.recur?`<span class="tag" style="color:var(--green)">🔁 ${esc(recurLabel(t))}</span>`:''}
           ${t.due?`<span class="matrix-task-notes">📅 ${fmtDateShort(t.due)}</span>`:''}
         </div>
       </div>
