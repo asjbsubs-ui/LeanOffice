@@ -932,7 +932,7 @@ function renderHomeHabits(){
 // Capture tab (notes)
 // ---------------------------------------------------------------
 const NOTE_CATS = ['💡 Business Idea','📣 Marketing Idea','💼 Sales Idea','⚙️ Process Improvement','💰 Finance Note','🔗 Resource','🧠 Thought','⚡ Quick Thought'];
-let _noteCat = NOTE_CATS[0], _noteDept = null, _noteFilterCat = null;
+let _noteCat = NOTE_CATS[0], _noteDept = null, _noteFilterCat = null, _noteStatusFilter = 'open';
 
 function notesTabHtml(){
   return `
@@ -957,10 +957,9 @@ function notesTabHtml(){
           <button class="btn btn-primary" style="margin-top:10px;background:var(--t-notes)" onclick="saveNote()">+ Capture</button>
         </div>
       </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="note-status-filter-chips"></div>
       <div class="chip-row" id="note-filter-chips" style="margin-bottom:14px"></div>
       <div id="notes-feed" style="margin-bottom:20px"></div>
-      <div class="card-header" style="padding-left:0;border-bottom:none"><div class="card-title">Backlog</div></div>
-      <div id="notes-backlog"></div>
     </div>`;
 }
 
@@ -1102,11 +1101,14 @@ function triageReject(noteId){
 
 function noteCard(n){
   const url = noteUrl(n);
+  const exited = n.status === 'routed' || n.status === 'rejected';
   const exitCount = [true, !!url, true, n.status !== 'backlog', true].filter(Boolean).length;
+  const ns = NOTE_LOG_STATUSES.find(s => s.v === n.status);
   return `
     <div class="note-card" id="notecard-${n.id}">
       <div class="note-text">${esc(n.text)}</div>
       <div class="note-footer">
+        ${exited && ns?`<span style="font-size:9px;font-weight:700;padding:2px 9px;border-radius:99px;border:1px solid color-mix(in srgb,${ns.col} 30%,transparent);background:${ns.bg};color:${ns.col};font-family:'Outfit',sans-serif;letter-spacing:.06em;text-transform:uppercase">${ns.l}</span>`:''}
         ${n.category?`<span class="note-cat">${esc(n.category)}</span>`:''}
         ${n.dept?`<span class="note-dept">${deptOf(n.dept).icon} ${deptOf(n.dept).label}</span>`:''}
         ${noteSourceTag(n)}
@@ -1114,6 +1116,10 @@ function noteCard(n){
         <button class="delete-btn" onclick="editNote('${n.id}')" title="Edit" style="font-size:13px">✏️</button>
         <button class="delete-btn" onclick="deleteNote('${n.id}')" title="Delete">✕</button>
       </div>
+      ${exited ? `
+      <div class="exits-row" style="grid-template-columns:1fr">
+        <button type="button" class="exit-b" onclick="restoreLogNote('${n.id}')">↩ Reopen</button>
+      </div>` : `
       <div class="exits-row" style="grid-template-columns:repeat(${exitCount},1fr)">
         <button type="button" class="exit-t" onclick="toggleExitPanel('${n.id}','task')">Task</button>
         ${url?`<button type="button" class="exit-e" onclick="triageExtract('${n.id}')">Extract</button>`:''}
@@ -1129,23 +1135,26 @@ function noteCard(n){
           <select class="select" id="lib-cat-${n.id}" style="flex:1">${LIBRARY_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}</select>
           <button type="button" class="exit-confirm r" onclick="triageToLibrary('${n.id}', document.getElementById('lib-cat-${n.id}').value)">File to Library</button>
         </div>
-      </div>
+      </div>`}
     </div>`;
 }
+
+function _setNoteStatusFilter(v){ _noteStatusFilter = v; renderNotes(); }
 
 function renderNotes(){
   renderNoteChips();
   const scoped = loadScoped(NK.notes);
+
+  $('note-status-filter-chips').innerHTML = noteStatusChipsHtml(_noteStatusFilter, scoped, '_setNoteStatusFilter');
+
   const cats = [...new Set(scoped.map(n => n.category).filter(Boolean))];
   $('note-filter-chips').innerHTML = `<button type="button" class="chip ${!_noteFilterCat?'on':''}" onclick="_noteFilterCat=null;renderNotes()">All</button>` +
     cats.map(c => `<button type="button" class="chip ${_noteFilterCat===c?'on':''}" onclick="_noteFilterCat='${c}';renderNotes()">${c}</button>`).join('');
 
-  let open = scoped.filter(n => n.status === 'open').sort((a,b) => b.ts - a.ts);
-  if(_noteFilterCat) open = open.filter(n => n.category === _noteFilterCat);
-  $('notes-feed').innerHTML = open.length ? open.map(noteCard).join('') : `<div class="empty-state">Nothing captured yet — jot something above.</div>`;
-
-  const backlog = scoped.filter(n => n.status === 'backlog').sort((a,b) => b.ts - a.ts);
-  $('notes-backlog').innerHTML = backlog.length ? backlog.map(noteCard).join('') : `<div class="empty-state">Backlog is empty</div>`;
+  let filtered = _noteStatusFilter ? scoped.filter(n => n.status === _noteStatusFilter) : scoped;
+  if(_noteFilterCat) filtered = filtered.filter(n => n.category === _noteFilterCat);
+  filtered.sort((a,b) => b.ts - a.ts);
+  $('notes-feed').innerHTML = filtered.length ? filtered.map(noteCard).join('') : `<div class="empty-state">${_noteStatusFilter==='open' ? 'Nothing captured yet — jot something above.' : 'Nothing here.'}</div>`;
 }
 
 let _editingNote = null;
@@ -2881,6 +2890,20 @@ const NOTE_LOG_STATUSES = [
   {v:'routed', l:'Routed', col:'#4ade80', bg:'rgba(74,222,128,.12)'},
   {v:'rejected', l:'Rejected', col:'#f87171', bg:'rgba(248,113,113,.12)'},
 ];
+// Shared by the Capture tab's inline status filter and the Logs page's filter bar --
+// same concept (note status), same look, wherever it's shown.
+function noteStatusChipsHtml(current, notes, onclickFn){
+  const chips = [{v:'', l:'All'}, ...NOTE_LOG_STATUSES];
+  return chips.map(c => {
+    const cnt = c.v === '' ? notes.length : notes.filter(n => n.status === c.v).length;
+    if(cnt === 0 && c.v !== '') return '';
+    const on = current === c.v;
+    const border = on ? (c.col ? `color-mix(in srgb,${c.col} 50%,transparent)` : 'var(--accent)') : 'var(--border-md)';
+    const bg = on ? (c.bg || 'rgba(96,165,250,.15)') : 'transparent';
+    const col = on ? (c.col || 'var(--accent)') : 'var(--text-muted)';
+    return `<button type="button" onclick="${onclickFn}('${c.v}')" style="padding:4px 12px;border-radius:99px;border:1px solid ${border};background:${bg};color:${col};cursor:pointer;font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;transition:all .15s">${c.l}<span style="opacity:.65;font-size:9px;margin-left:3px">${cnt}</span></button>`;
+  }).join('');
+}
 function viewLogNote(id){
   const n = load(NK.notes).find(x => x.id === id); if(!n) return;
   const biz = getBusinesses().find(b => b.id === n.businessId);
@@ -2905,19 +2928,11 @@ function restoreLogNote(id){
   if(activeTab === 'notes') renderNotes();
   renderCurrentLogs(($('logs-search')||{value:''}).value);
 }
+function _logsSetNoteStatusFilter(v){ _logsNoteStatusFilter = v; renderCurrentLogs(($('logs-search')||{value:''}).value); }
 function renderLogsNotes(q){
   const q_ = (q||'').toLowerCase();
   const all = loadScoped(NK.notes);
-  const chips = [{key:'',l:'All'}, ...NOTE_LOG_STATUSES.map(s=>({key:s.v,l:s.l,col:s.col,bg:s.bg}))];
-  const filterBar = chips.map(c => {
-    const cnt = c.key === '' ? all.length : all.filter(n => n.status === c.key).length;
-    if(cnt === 0 && c.key !== '') return '';
-    const on = _logsNoteStatusFilter === c.key;
-    const border = on ? (c.col ? `color-mix(in srgb,${c.col} 50%,transparent)` : 'var(--accent)') : 'var(--border-md)';
-    const bg = on ? (c.bg || 'rgba(96,165,250,.15)') : 'transparent';
-    const col = on ? (c.col || 'var(--accent)') : 'var(--text-muted)';
-    return `<button onclick="_logsNoteStatusFilter='${c.key}';renderCurrentLogs($('logs-search').value)" style="padding:4px 12px;border-radius:99px;border:1px solid ${border};background:${bg};color:${col};cursor:pointer;font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;transition:all .15s">${c.l}<span style="opacity:.65;font-size:9px;margin-left:3px">${cnt}</span></button>`;
-  }).join('');
+  const filterBar = noteStatusChipsHtml(_logsNoteStatusFilter, all, '_logsSetNoteStatusFilter');
   let filtered = _logsNoteStatusFilter ? all.filter(n => n.status === _logsNoteStatusFilter) : all;
   filtered = filtered.filter(n => !q_ || n.text.toLowerCase().includes(q_) || (n.category||'').toLowerCase().includes(q_));
   logsCount(filtered.length + ' notes');
