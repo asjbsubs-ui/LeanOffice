@@ -371,7 +371,7 @@ const NAV_STATIC = [
   {key:'tasks',    label:'Tasks',          icon:'✅', color:'var(--t-tasks)',    pill:true,  group:'workflow'},
   {key:'growth',   label:'Growth',         icon:'📈', color:'var(--t-growth)',   pill:true,  group:'workflow'},
   {key:'goals',    label:'Goals',          icon:'🎯', color:'var(--t-goals)',    pill:false, group:'track'},
-  {key:'habits',   label:'Habits',         icon:'🔁', color:'var(--t-habits)',   pill:false, group:'track'},
+  {key:'habits',   label:'Work',           icon:'🔁', color:'var(--t-habits)',   pill:false, group:'track'},
   {key:'meetings', label:'Meetings',       icon:'📅', color:'var(--t-meetings)', pill:false, group:'track'},
   {key:'dailyReview', label:'Daily Review', icon:'📔', color:'var(--t-review)', pill:false, group:'reflect'},
   {key:'review',   label:'Weekly Review',  icon:'📊', color:'var(--t-review)',   pill:false, group:'reflect', weekendDot:true},
@@ -857,7 +857,7 @@ function homeTabHtml(){
           <div class="card-body tight" id="home-tasks"></div>
         </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">Today's Habits</div></div>
+          <div class="card-header"><div class="card-title">Today's Work</div></div>
           <div class="card-body tight" id="home-habits"></div>
         </div>
       </div>
@@ -1750,7 +1750,7 @@ function habitsTabHtml(){
       <div class="ph">
         <div>
           <div class="ph-eyebrow" style="color:var(--t-habits)">LeanOffice</div>
-          <div class="ph-title" style="color:var(--t-habits)">🔁 Habits</div>
+          <div class="ph-title" style="color:var(--t-habits)">🔁 Work</div>
           <div class="ph-sub">Small daily wins compound into massive results.</div>
         </div>
         <div class="ph-actions"><button class="logs-btn" onclick="openLogs('habits')">📋 Logs</button><button class="btn btn-primary" style="background:var(--t-habits);color:#000" onclick="openHabitModal()">+ Add Habit</button></div>
@@ -3057,7 +3057,7 @@ function switchTab(id){
 // a way to see them again; this is that view.
 // ---------------------------------------------------------------
 let _logsTab = null;
-const LOG_TITLES = { notes:'Capture', tasks:'Tasks', goals:'Goals', habits:'Habits', meetings:'Meetings', dailyReview:'Daily Review', review:'Weekly Review' };
+const LOG_TITLES = { notes:'Capture', tasks:'Tasks', goals:'Goals', habits:'Work', meetings:'Meetings', dailyReview:'Daily Review', review:'Weekly Review' };
 let _logsNoteStatusFilter = '';
 const _logsDateSort = {};
 
