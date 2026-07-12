@@ -1273,7 +1273,7 @@ function noteCard(n){
             <option value="">No project</option>
             ${loadScoped(NK.projects).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
           </select>
-          <input class="input" type="date" id="task-due-${n.id}" style="flex:1">
+          <input class="input" type="date" id="task-due-${n.id}" value="${today()}" style="flex:1">
         </div>
         <div class="exit-panel-row">${DEPTS.map(d => `<button type="button" class="chip" onclick="triageToTask('${n.id}','${d.key}', document.getElementById('task-proj-${n.id}').value, document.getElementById('task-due-${n.id}').value)">${d.icon} ${d.label}</button>`).join('')}</div>
       </div>
