@@ -1141,12 +1141,12 @@ function afterTriage(msg){
   if(msg) showToast(msg);
 }
 
-function triageToTask(noteId, dept){
+function triageToTask(noteId, dept, projectId){
   const notes = load(NK.notes);
   const n = notes.find(x => x.id === noteId);
   if(!n) return;
   const tasks = load(LOK[dept]);
-  tasks.unshift({id: uid(), businessId: activeBusinessId, title: n.text.slice(0,120), due:'', notes:'', urgency:'not-urgent', importance:'important', done:false, created: today()});
+  tasks.unshift({id: uid(), businessId: activeBusinessId, title: n.text.slice(0,120), due:'', notes:'', urgency:'not-urgent', importance:'important', projectId: projectId || null, done:false, created: today()});
   save(LOK[dept], tasks);
   n.status = 'routed';
   n.routedTo = {type:'task', dept};
@@ -1230,7 +1230,11 @@ function noteCard(n){
         <button type="button" class="exit-x" onclick="triageReject('${n.id}')">Reject</button>
       </div>
       <div class="exit-panel" id="exitpanel-${n.id}-task">
-        <div class="exit-panel-row">${DEPTS.map(d => `<button type="button" class="chip" onclick="triageToTask('${n.id}','${d.key}')">${d.icon} ${d.label}</button>`).join('')}</div>
+        <select class="select" id="task-proj-${n.id}" style="margin-bottom:8px;width:100%">
+          <option value="">No project</option>
+          ${loadScoped(NK.projects).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}
+        </select>
+        <div class="exit-panel-row">${DEPTS.map(d => `<button type="button" class="chip" onclick="triageToTask('${n.id}','${d.key}', document.getElementById('task-proj-${n.id}').value)">${d.icon} ${d.label}</button>`).join('')}</div>
       </div>
       <div class="exit-panel" id="exitpanel-${n.id}-reference">
         <div class="exit-panel-row">
