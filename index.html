@@ -2664,6 +2664,7 @@ function dailyReviewTabHtml(){
           <div class="ph-title" style="color:var(--t-review)">📔 Daily Review</div>
           <div class="ph-sub">A quick end-of-day business reflection.</div>
         </div>
+        <div class="ph-actions"><button class="logs-btn" onclick="openLogs('dailyReview')">📋 Logs</button></div>
       </div>
       <div class="grid-2">
         <div class="card">
@@ -3031,7 +3032,7 @@ function switchTab(id){
 // a way to see them again; this is that view.
 // ---------------------------------------------------------------
 let _logsTab = null;
-const LOG_TITLES = { notes:'Capture', tasks:'Tasks', goals:'Goals', habits:'Habits', meetings:'Meetings' };
+const LOG_TITLES = { notes:'Capture', tasks:'Tasks', goals:'Goals', habits:'Habits', meetings:'Meetings', dailyReview:'Daily Review' };
 let _logsNoteStatusFilter = '';
 const _logsDateSort = {};
 
@@ -3083,7 +3084,7 @@ function dateSortFn(tab, field){
 
 function renderCurrentLogs(q){
   if(!_logsTab) return;
-  const renders = { notes:renderLogsNotes, tasks:renderLogsTasks, goals:renderLogsGoals, habits:renderLogsHabits, meetings:renderLogsMeetings };
+  const renders = { notes:renderLogsNotes, tasks:renderLogsTasks, goals:renderLogsGoals, habits:renderLogsHabits, meetings:renderLogsMeetings, dailyReview:renderLogsDailyReview };
   if(renders[_logsTab]) renders[_logsTab](q || '');
 }
 
@@ -3247,6 +3248,29 @@ function renderLogsHabits(q){
     ]);
   });
   logsHtml(dbTable(['','Habit','Total','Streak',''], rows));
+}
+
+// ── Daily Review Logs ──
+function deleteDailyReview(id){
+  save(NK.dailyReviews, load(NK.dailyReviews).filter(r => r.id !== id));
+}
+function editDailyReviewFromLogs(id){
+  closeLogs();
+  switchTab('dailyReview');
+  loadDailyReview(id);
+}
+function renderLogsDailyReview(q){
+  const q_ = (q||'').toLowerCase();
+  const all = loadScoped(NK.dailyReviews).filter(r => !q_ || (r.dump||'').toLowerCase().includes(q_) || (r.wins||'').toLowerCase().includes(q_) || (r.priority||'').toLowerCase().includes(q_));
+  logsCount(all.length + ' entries');
+  const rows = [...all].sort(dateSortFn('dailyReview','date')).map(r => dbRow([
+    `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap;min-width:100px">${fmtDateShort(r.date)}</div>`,
+    r.mood ? `<span style="font-size:15px">${MOOD_EMOJI[r.mood-1]}</span>` : '—',
+    `<span style="max-width:280px;display:block;color:var(--text-primary)">${esc((r.dump||'').slice(0,100))}${(r.dump||'').length>100?'…':''}</span>`,
+    esc((r.priority||'').slice(0,60)) || '—',
+    `<span onclick="event.stopPropagation()"><button onclick="editDailyReviewFromLogs('${r.id}')" style="background:transparent;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;padding:3px 7px;border-radius:3px" onmouseover="this.style.color='var(--t-review)'" onmouseout="this.style.color='var(--text-muted)'">✏️</button>${dbDelBtn('deleteDailyReview', r.id)}</span>`
+  ]));
+  logsHtml(dbTable([sortHdr('dailyReview','Date'),'Mood','What happened','Priority',''], rows));
 }
 
 function init(){
