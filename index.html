@@ -2199,10 +2199,17 @@ function growthTabHtml(){
           <button class="btn btn-primary" style="background:var(--t-growth);color:#000" onclick="openExtractionModal()">+ Add extraction result</button>
         </div>
       </div>
+      <div class="card-header" style="padding-left:0;border-bottom:none">
+        <div class="card-title">🎓 Today's Learning</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="todays-learning-counter" style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace"></span>
+          <button class="btn btn-ghost" style="padding:5px 12px;font-size:11px" onclick="todaysLearningServeNext()">Serve next →</button>
+        </div>
+      </div>
+      <div id="todays-learning-list" style="margin-bottom:20px"></div>
       <div class="card-header" style="padding-left:0;border-bottom:none"><div class="card-title">To Learn <span id="toLearnCount"></span></div></div>
       <div class="card" style="margin-bottom:20px"><div id="to-learn-list"></div></div>
       <div class="card-header" style="padding-left:0;border-bottom:none"><div class="card-title">Learned</div></div>
-      <div id="learned-list" style="margin-bottom:10px"></div>
       <div id="learned-archive"></div>
     </div>`;
 }
@@ -2265,6 +2272,44 @@ function sourceCard(s){
 
 function toggleGrowthArchive(){ _growthArchiveOpen = !_growthArchiveOpen; renderGrowth(); }
 
+function growthSourceDecided(s){ return [...(s.lessons||[]), ...(s.ideas||[])].every(x => x.decided); }
+
+// ---------------------------------------------------------------
+// Today's Learning — a capped daily serving of active (undecided)
+// Learned sources, mirroring LeanFlow's Growth tab. "Served today" is
+// local-only UI state (not synced), scoped to the active business so
+// switching businesses doesn't mix up which sources were served.
+// ---------------------------------------------------------------
+const GROWTH_DAILY_SERVING = 3;
+const _GROWTH_SERVED_KEY = '_lo_growth_served_today';
+function _loadGrowthServedToday(){
+  let s; try{ s = JSON.parse(localStorage.getItem(_GROWTH_SERVED_KEY) || 'null'); }catch{ s = null; }
+  if(!s || s.date !== today() || s.businessId !== activeBusinessId) s = {date: today(), businessId: activeBusinessId, ids: []};
+  return s;
+}
+function _saveGrowthServedToday(s){ localStorage.setItem(_GROWTH_SERVED_KEY, JSON.stringify(s)); }
+function _ensureGrowthServedSeed(){
+  const s = _loadGrowthServedToday();
+  const ready = loadScoped(NK.growth).filter(g => g.category === 'source' && !growthSourceDecided(g));
+  let changed = false;
+  while(s.ids.length < GROWTH_DAILY_SERVING){
+    const next = ready.find(src => !s.ids.includes(src.id));
+    if(!next) break;
+    s.ids.push(next.id); changed = true;
+  }
+  if(changed) _saveGrowthServedToday(s);
+  return s;
+}
+function todaysLearningServeNext(){
+  const s = _loadGrowthServedToday();
+  const ready = loadScoped(NK.growth).filter(g => g.category === 'source' && !growthSourceDecided(g));
+  const next = ready.find(src => !s.ids.includes(src.id));
+  if(!next){ showToast('Nothing more ready to learn right now'); return; }
+  s.ids.push(next.id);
+  _saveGrowthServedToday(s);
+  renderGrowth();
+}
+
 function renderGrowth(){
   const items = loadScoped(NK.growth);
   const queue = items.filter(g => g.category === 'to-learn' && g.status !== 'done').sort((a,b) => (b.createdAt||'') < (a.createdAt||'') ? -1 : 1);
@@ -2272,10 +2317,17 @@ function renderGrowth(){
   $('to-learn-list').innerHTML = queue.length ? queue.map(toLearnRow).join('') : `<div class="empty-state">Nothing queued — extract a link from Capture or add one here.</div>`;
 
   const sources = items.filter(g => g.category === 'source');
-  const isDecided = s => [...(s.lessons||[]), ...(s.ideas||[])].every(x => x.decided);
-  const active = sources.filter(s => !isDecided(s));
-  const archived = sources.filter(isDecided);
-  $('learned-list').innerHTML = active.length ? active.map(sourceCard).join('') : `<div class="empty-state">Nothing processed yet</div>`;
+  const archived = sources.filter(growthSourceDecided);
+
+  const seed = _ensureGrowthServedSeed();
+  const served = seed.ids.map(id => sources.find(s => s.id === id)).filter(Boolean);
+  const active = served.filter(s => !growthSourceDecided(s));
+  const decidedCount = served.filter(growthSourceDecided).length;
+  $('todays-learning-list').innerHTML = active.length
+    ? active.map(sourceCard).join('')
+    : `<div class="empty-state">${served.length ? 'All served sources decided. Serve next, or check back tomorrow.' : 'Nothing ready yet — process a queued item in To Learn below.'}</div>`;
+  $('todays-learning-counter').textContent = served.length ? `${decidedCount} of ${served.length} decided today` : '';
+
   $('learned-archive').innerHTML = archived.length ? `
     <div class="card-header" style="padding-left:0;border-bottom:none;cursor:pointer" onclick="toggleGrowthArchive()"><div class="card-title">Decided (${archived.length}) ${_growthArchiveOpen?'▾':'▸'}</div></div>
     ${_growthArchiveOpen ? archived.map(sourceCard).join('') : ''}` : '';
