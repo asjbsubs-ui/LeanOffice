@@ -373,6 +373,7 @@ const NAV_STATIC = [
   {key:'goals',    label:'Goals',          icon:'🎯', color:'var(--t-goals)',    pill:false, group:'track'},
   {key:'habits',   label:'Habits',         icon:'🔁', color:'var(--t-habits)',   pill:false, group:'track'},
   {key:'meetings', label:'Meetings',       icon:'📅', color:'var(--t-meetings)', pill:false, group:'track'},
+  {key:'dailyReview', label:'Daily Review', icon:'📔', color:'var(--t-review)', pill:false, group:'reflect'},
   {key:'review',   label:'Weekly Review',  icon:'📊', color:'var(--t-review)',   pill:false, group:'reflect', weekendDot:true},
   {key:'library',  label:'Library',        icon:'📚', color:'var(--t-library)',  pill:false, group:'resources'},
   {key:'directory',label:'Directory',      icon:'👥', color:'var(--t-directory)',pill:false, group:'resources'},
@@ -388,7 +389,7 @@ const NAV_GROUPS = [
 function navGroupTabs(key){ return key === 'departments' ? DEPTS : NAV_STATIC.filter(t => t.group === key); }
 
 // Single-collection localStorage keys (not per-department)
-const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews', businesses:'lo_businesses', library:'lo_library', directory:'lo_directory', projects:'lo_projects' };
+const NK = { notes:'lo_notes', goals:'lo_goals', habits:'lo_habits', habitLog:'lo_habitLog', meetings:'lo_meetings', growth:'lo_growth', reviews:'lo_reviews', businesses:'lo_businesses', library:'lo_library', directory:'lo_directory', projects:'lo_projects', dailyReviews:'lo_dailyReviews' };
 const LIBRARY_CATEGORIES = ['SOPs', 'Playbooks', 'Market', 'Tools', 'General'];
 
 let activeTab = 'home';
@@ -409,7 +410,7 @@ function save(k, v){
 // loadScoped(). Habits and the Directory (Phase 7) stay global.
 // ---------------------------------------------------------------
 const BIZ_COLORS = ['#6366f1','#f472b6','#60a5fa','#34d399','#f59e0b','#22d3ee','#4ade80','#fb923c'];
-const SCOPED_KEYS = [...DEPTS.map(d => LOK[d.key]), NK.notes, NK.goals, NK.meetings, NK.growth, NK.reviews, NK.projects];
+const SCOPED_KEYS = [...DEPTS.map(d => LOK[d.key]), NK.notes, NK.goals, NK.meetings, NK.growth, NK.reviews, NK.projects, NK.dailyReviews];
 const SCHEMA_KEY = '_lo_schemaVersion';
 const ACTIVE_BIZ_KEY = '_lo_activeBusiness';
 
@@ -598,13 +599,15 @@ function toggleTask(dept, id){
   const t = tasks.find(x => x.id === id);
   if(!t) return;
   t.done = !t.done;
+  t.completedAt = t.done ? today() : null;
   if(t.done && t.recur){
-    tasks.unshift({...t, id: uid(), done: false, created: today(), due: nextRecurDue(t.due, t.recur, t.recurDays, t.recurWeekDays)});
+    tasks.unshift({...t, id: uid(), done: false, completedAt: null, created: today(), due: nextRecurDue(t.due, t.recur, t.recurDays, t.recurWeekDays)});
   }
   save(LOK[dept], tasks);
   renderMatrix(dept);
   if(activeTab === 'tasks') renderTasks();
   if(activeTab === 'home') renderHome();
+  if(activeTab === 'dailyReview') renderDailyReview();
 }
 
 function deleteTask(dept, id){
@@ -2639,6 +2642,119 @@ function deleteContact(id){
 }
 
 // ---------------------------------------------------------------
+// Daily Review tab — a business-flavored version of LeanFlow's
+// Journal, plus a read-only auto-filled list of tasks completed
+// today (LeanFlow's Journal has no equivalent of this). Follows the
+// same convention as Weekly Review below: the form always starts
+// blank for a fresh entry; clicking History loads a past (or
+// today's own, if already saved) entry into the form for viewing/
+// resaving. Never auto-restores today's entry on render, since that
+// would clobber in-progress typing whenever something else (e.g.
+// completing a task elsewhere) triggers a re-render.
+// ---------------------------------------------------------------
+const MOOD_EMOJI = ['😩','😞','😐','😊','🔥'];
+let _drMood = null;
+
+function dailyReviewTabHtml(){
+  return `
+    <div id="tab-dailyReview" class="tab-panel ${activeTab==='dailyReview'?'active':''}">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow" style="color:var(--t-review)">LeanOffice</div>
+          <div class="ph-title" style="color:var(--t-review)">📔 Daily Review</div>
+          <div class="ph-sub">A quick end-of-day business reflection.</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title" id="dr-date-label">Today</div></div>
+          <div class="card-body">
+            <div style="margin-bottom:14px">
+              <div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">How did today go?</div>
+              <div class="chip-row" id="dr-mood-row">
+                ${MOOD_EMOJI.map((e,i) => `<button type="button" class="chip" data-mood="${i+1}" onclick="selectDrMood(this)">${e}</button>`).join('')}
+              </div>
+            </div>
+            <div class="field">
+              <span style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted)">✅ Completed Today</span>
+              <div id="dr-completed-tasks" style="margin-top:8px"></div>
+            </div>
+            <div class="field"><label>What happened today?</label><textarea class="input" id="dr-dump" style="min-height:100px" placeholder="Decisions, blockers, conversations, anything worth remembering…"></textarea></div>
+            <div class="field"><label>Wins today</label><textarea class="input" id="dr-wins" style="min-height:64px" placeholder="1. …"></textarea></div>
+            <div class="field"><label>Tomorrow's #1 Priority</label><textarea class="input" id="dr-priority" style="min-height:56px"></textarea></div>
+            <button class="btn btn-primary" style="background:var(--t-review);color:#000;width:100%" onclick="saveDailyReview()">Save Entry</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">History</div></div>
+          <div id="dr-history"></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function selectDrMood(btn){
+  document.querySelectorAll('#dr-mood-row .chip').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  _drMood = parseInt(btn.dataset.mood);
+}
+
+function saveDailyReview(){
+  const date = today();
+  const fields = {
+    date,
+    mood: _drMood || null,
+    dump: $('dr-dump').value.trim(),
+    wins: $('dr-wins').value.trim(),
+    priority: $('dr-priority').value.trim(),
+    ts: Date.now(),
+  };
+  const reviews = load(NK.dailyReviews);
+  const i = reviews.findIndex(r => r.date === date && r.businessId === activeBusinessId);
+  if(i >= 0) reviews[i] = {...reviews[i], ...fields};
+  else reviews.unshift({id: uid(), businessId: activeBusinessId, ...fields});
+  save(NK.dailyReviews, reviews);
+  showToast('Daily review saved');
+  renderDailyReview();
+}
+
+function loadDailyReview(id){
+  const r = load(NK.dailyReviews).find(x => x.id === id);
+  if(!r) return;
+  $('dr-dump').value = r.dump || '';
+  $('dr-wins').value = r.wins || '';
+  $('dr-priority').value = r.priority || '';
+  document.querySelectorAll('#dr-mood-row .chip').forEach(b => b.classList.toggle('on', parseInt(b.dataset.mood) === r.mood));
+  _drMood = r.mood || null;
+}
+
+function renderDailyReview(){
+  const date = today();
+  $('dr-date-label').textContent = 'Today — ' + fmtDateShort(date);
+
+  const completed = allDeptTasksScoped().filter(t => t.completedAt === date);
+  $('dr-completed-tasks').innerHTML = completed.length
+    ? completed.map(t => `
+      <div class="list-row">
+        <div class="check-box" style="background:var(--green);border-color:var(--green)">✓</div>
+        <div style="flex:1;min-width:0">
+          <span class="matrix-task-title" style="text-decoration:line-through;color:var(--text-muted)">${esc(t.title)}</span>
+          <span class="tag" style="color:${deptOf(t._dept).color}">${deptOf(t._dept).icon} ${deptOf(t._dept).label}</span>
+        </div>
+      </div>`).join('')
+    : `<div class="empty-state">Nothing checked off yet today.</div>`;
+
+  const reviews = loadScoped(NK.dailyReviews).sort((a,b) => b.date < a.date ? -1 : 1);
+  $('dr-history').innerHTML = reviews.length ? reviews.map(r => `
+    <div class="list-row" style="cursor:pointer" onclick="loadDailyReview('${r.id}')">
+      <div style="flex:1">
+        <div class="matrix-task-title">${fmtDateShort(r.date)}${r.date===date?' (Today)':''}${r.mood?' — '+MOOD_EMOJI[r.mood-1]:''}</div>
+        <div class="matrix-task-notes">${esc((r.priority||r.wins||'').slice(0,80))}</div>
+      </div>
+    </div>`).join('') : `<div class="empty-state">No entries yet</div>`;
+}
+
+// ---------------------------------------------------------------
 // Weekly Review tab
 // ---------------------------------------------------------------
 function reviewTabHtml(){
@@ -2814,7 +2930,7 @@ function saveBusinessForm(){
 
 function rerenderScopedViews(){
   DEPTS.forEach(d => renderMatrix(d.key));
-  renderHome(); renderNotes(); renderTasks(); renderGoals(); renderMeetings(); renderGrowth(); renderReview(); renderLibrary();
+  renderHome(); renderNotes(); renderTasks(); renderGoals(); renderMeetings(); renderGrowth(); renderDailyReview(); renderReview(); renderLibrary();
   updateAllPills();
 }
 
@@ -2877,14 +2993,14 @@ function deptTabHtml(d){
 
 const RENDER_FNS = {
   home: renderHome, notes: renderNotes, tasks: renderTasks, goals: renderGoals, habits: renderHabits,
-  meetings: renderMeetings, growth: renderGrowth, review: renderReview, library: renderLibrary, directory: renderDirectory,
+  meetings: renderMeetings, growth: renderGrowth, dailyReview: renderDailyReview, review: renderReview, library: renderLibrary, directory: renderDirectory,
 };
 
 function buildShell(){
   buildNavHtml();
 
   $('mainTabs').innerHTML = [
-    homeTabHtml(), notesTabHtml(), tasksTabHtml(), goalsTabHtml(), habitsTabHtml(), meetingsTabHtml(), growthTabHtml(), reviewTabHtml(), libraryTabHtml(), directoryTabHtml(),
+    homeTabHtml(), notesTabHtml(), tasksTabHtml(), goalsTabHtml(), habitsTabHtml(), meetingsTabHtml(), growthTabHtml(), dailyReviewTabHtml(), reviewTabHtml(), libraryTabHtml(), directoryTabHtml(),
     ...DEPTS.map(deptTabHtml),
     logsPageHtml(),
   ].join('');
@@ -3172,7 +3288,7 @@ const _SB_KEY = 'sb_publishable_qgfJXOAlB33B2mDNqeWAUQ_nFpBv-bN';
 const _SB_TABLE = 'leanoffice_sync';
 const _SYNC_TS_KEY = '_lo_last_sync';
 const _PENDING_KEY = '_lo_pending';
-const SYNC_COLS = [...DEPTS.map(d => d.key), 'notes', 'goals', 'habits', 'habitLog', 'meetings', 'growth', 'reviews', 'businesses', 'library', 'directory', 'projects'];
+const SYNC_COLS = [...DEPTS.map(d => d.key), 'notes', 'goals', 'habits', 'habitLog', 'meetings', 'growth', 'reviews', 'businesses', 'library', 'directory', 'projects', 'dailyReviews'];
 let _sb = null, _sbUser = null, _bgPollTimer = null;
 
 function initSupabase(){
